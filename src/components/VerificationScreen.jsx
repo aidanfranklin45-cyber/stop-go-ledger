@@ -52,6 +52,10 @@ const VerificationScreen = ({
           setSignature1(sig);
           setCurrentSigningIndex(null);
           setSelectedEmployeeId(null);
+          // Auto-submit immediately if this is a single-operator shift
+          if (activeTeam.length === 1) {
+            onSubmitSignatures([sig]);
+          }
         } else if (currentSigningIndex === 2) {
           setSignature2(sig);
           setCurrentSigningIndex(null);
@@ -123,69 +127,47 @@ const VerificationScreen = ({
             {signature1 ? `Sig 1: ${signature1.name}` : "Signature 1: Pending"}
           </span>
         </div>
-        <div className={`sig-pill ${signature2 ? 'signed' : ''}`}>
-          {signature2 ? <Check size={16} /> : <Lock size={16} />}
-          <span>
-            {signature2 ? `Sig 2: ${signature2.name}` : "Signature 2: Pending"}
-          </span>
-        </div>
+        {activeTeam.length >= 2 && (
+          <div className={`sig-pill ${signature2 ? 'signed' : ''}`}>
+            {signature2 ? <Check size={16} /> : <Lock size={16} />}
+            <span>
+              {signature2 ? `Sig 2: ${signature2.name}` : "Signature 2: Pending"}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Main Flow Controller */}
       {currentSigningIndex === null ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '320px', margin: '0 auto' }}>
-          {activeTeam.length < 2 ? (
-            <div 
-              style={{ 
-                color: 'var(--accent-amber)', 
-                background: 'var(--accent-amber-glow)',
-                padding: '12px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.85rem',
-                border: '1px solid rgba(245, 158, 11, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                textAlign: 'left'
-              }}
+          {!signature1 && (
+            <button
+              type="button"
+              className="btn btn-primary w-full"
+              onClick={() => handleStartSigning(1)}
             >
-              <AlertTriangle size={20} style={{ flexShrink: 0 }} />
-              <span>
-                At least two team members must be checked in to verify this shift.
-              </span>
-            </div>
-          ) : (
-            <>
-              {!signature1 && (
-                <button
-                  type="button"
-                  className="btn btn-primary w-full"
-                  onClick={() => handleStartSigning(1)}
-                >
-                  Verify Signature 1
-                </button>
-              )}
-              {signature1 && !signature2 && (
-                <button
-                  type="button"
-                  className="btn btn-primary w-full"
-                  onClick={() => handleStartSigning(2)}
-                >
-                  Verify Signature 2
-                </button>
-              )}
-              {(signature1 || signature2) && (
-                <button
-                  type="button"
-                  className="btn btn-secondary w-full"
-                  onClick={handleResetSignatures}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  <RotateCcw size={16} />
-                  Clear Signatures
-                </button>
-              )}
-            </>
+              Verify Signature 1
+            </button>
+          )}
+          {activeTeam.length >= 2 && signature1 && !signature2 && (
+            <button
+              type="button"
+              className="btn btn-primary w-full"
+              onClick={() => handleStartSigning(2)}
+            >
+              Verify Signature 2
+            </button>
+          )}
+          {(signature1 || signature2) && (
+            <button
+              type="button"
+              className="btn btn-secondary w-full"
+              onClick={handleResetSignatures}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              <RotateCcw size={16} />
+              Clear Signatures
+            </button>
           )}
 
           {onResetShift && (
