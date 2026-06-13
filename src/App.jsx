@@ -17,6 +17,7 @@ import {
   startShift,
   updateTask,
   submitShiftSignatures,
+  sendDiscordNotification,
   simulateDailyCleanup,
   isLiveMode,
   getFirebaseConfig,
@@ -238,13 +239,17 @@ function App() {
   };
 
   // --- State 03 Operations ---
-  const handleVerifySignatures = async (signatures) => {
+  const handleVerifySignatures = async (signatures, tillReport = null) => {
     if (!currentShift) return;
     setLoading(true);
     try {
-      const updated = await submitShiftSignatures(currentShift.shift_id, signatures);
+      const updated = await submitShiftSignatures(currentShift.shift_id, signatures, tillReport);
       if (updated) {
         setCurrentShift(updated);
+        const webhookUrl = localStorage.getItem('stop_go_discord_webhook_url');
+        if (webhookUrl) {
+          await sendDiscordNotification(updated, webhookUrl);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -328,7 +333,7 @@ function App() {
       <header className="header glass-panel animate-fade-in">
         <div className="logo-section">
           <h1>Stop & Go</h1>
-          <p>Operational Accountability Ledger</p>
+          <p>Dynamic Chores List</p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -547,7 +552,7 @@ function App() {
 
           <h2 style={{ fontSize: '2rem', marginBottom: '8px', fontFamily: 'var(--font-display)' }}>Shift Ledger Submitted</h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '32px', fontSize: '0.95rem' }}>
-            The operational accountability checklist for {currentShift.date} ({currentShift.shift_type}) is sealed.
+            The dynamic chores list checklist for {currentShift.date} ({currentShift.shift_type}) is sealed.
           </p>
 
           <div className="glass-panel" style={{ padding: '24px', margin: '0 auto 32px', textAlign: 'left', background: 'rgba(255,255,255,0.01)' }}>
@@ -587,6 +592,7 @@ function App() {
             activeTeam={activeTeamObjects}
             onSubmitSignatures={handleVerifySignatures}
             onResetShift={handleResetShift}
+            shift={currentShift}
           />
         </div>
       ) : (

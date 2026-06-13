@@ -505,14 +505,20 @@ export async function updateShiftStatus(shiftId, status) {
   return null;
 }
 
-export async function submitShiftSignatures(shiftId, signatures) {
+export async function submitShiftSignatures(shiftId, signatures, tillReport = null) {
+  const tillData = tillReport ? {
+    till_status: tillReport.till_status,
+    till_discrepancy_amount: tillReport.till_discrepancy_amount
+  } : {};
+
   if (isLiveMode()) {
     try {
       const shiftDocRef = doc(db, 'active_shifts', shiftId);
       await updateDoc(shiftDocRef, {
         status: "submitted",
         signatures: signatures,
-        submitted_at: serverTimestamp()
+        submitted_at: serverTimestamp(),
+        ...tillData
       });
       return await getActiveShift(shiftId);
     } catch (e) {
@@ -526,11 +532,111 @@ export async function submitShiftSignatures(shiftId, signatures) {
     shift.status = 'submitted';
     shift.signatures = signatures;
     shift.submitted_at = new Date().toISOString();
+    if (tillReport) {
+      shift.till_status = tillReport.till_status;
+      shift.till_discrepancy_amount = tillReport.till_discrepancy_amount;
+    }
     shifts[shiftId] = shift;
     localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
     return shift;
   }
   return null;
+}
+
+export async function sendDiscordNotification(shift, webhookUrl) {
+  if (!webhookUrl) return;
+
+  try {
+    let tillStatusText = "N/A (Opening Shift)";
+    let alertPrefix = "";
+    let color = 5814783; // Blueish color (Decimal for Hex: 58B9FF)
+    
+    if (shift.shift_type === 'closing') {
+      if (shift.till_status === 'balanced') {
+        tillStatusText = "✅ Balanced ($0.00)";
+        color = 3066993; // Green
+      } else if (shift.till_status === 'over') {
+        tillStatusText = `📈 Over (+$${Number(shift.till_discrepancy_amount).toFixed(2)})`;
+        color = 15105570; // Orange
+        if (shift.till_discrepancy_amount >= 10) {
+          alertPrefix = "🚨 **LARGE TILL DISCREPANCY** 🚨\n";
+          color = 15158332; // Red
+        }
+      } else if (shift.till_status === 'under') {
+        tillStatusText = `📉 Under (-$${Number(shift.till_discrepancy_amount).toFixed(2)})`;
+        color = 15158332; // Red
+        alertPrefix = "🚨 **TILL IS UNDER** 🚨\n";
+      }
+    }
+
+    const completedPercent = shift.total_count > 0 
+      ? Math.round((shift.completed_count / shift.total_count) * 100) 
+      : 0;
+
+    // Build the employee names list from signatures if available, otherwise fallback to team pids
+    let sigList = "No signatures";
+    if (shift.signatures) {
+      if (Array.isArray(shift.signatures)) {
+        sigList = shift.signatures.map(s => s.name).join(' & ');
+      } else {
+        // Handle object format in tests
+        const sigObj = shift.signatures;
+        const names = [];
+        if (sigObj.manager_name) names.push(sigObj.manager_name);
+        if (sigObj.operator_name) names.push(sigObj.operator_name);
+        if (names.length > 0) sigList = names.join(' & ');
+      }
+    }
+
+    const embed = {
+      title: `${shift.shift_type === 'opening' ? '☀️' : '🌙'} Shift Submitted: Stop & Go Chores`,
+      description: `${alertPrefix}Shift date: **${shift.date}** (${shift.shift_type.toUpperCase()})`,
+      color: color,
+      fields: [
+        {
+          name: "📋 Chore Completion",
+          value: `**${shift.completed_count} / ${shift.total_count}** completed (${completedPercent}%)`,
+          inline: true
+        },
+        {
+          name: "💰 Till Closing Report",
+          value: tillStatusText,
+          inline: true
+        },
+        {
+          name: "👥 Active Roster",
+          value: shift.active_team_pids && shift.active_team_pids.length > 0 
+            ? `Checked-in IDs: ${shift.active_team_pids.join(', ')}`
+            : "No active roster",
+          inline: false
+        },
+        {
+          name: "✍️ Sign-off Authorities",
+          value: sigList,
+          inline: false
+        }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: {
+        text: "Stop & Go Dynamic Chores App"
+      }
+    };
+
+    const payload = {
+      content: alertPrefix ? `🚨 **Alert:** Shift closing has a till discrepancy! 🚨` : `Shift submitted for **${shift.date}**`,
+      embeds: [embed]
+    };
+
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Failed to send Discord notification:", error);
+  }
 }
 
 // --- Simulated Daily CRON Cleanup (04:00 AM) ---

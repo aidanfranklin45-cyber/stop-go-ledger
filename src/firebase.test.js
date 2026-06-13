@@ -234,6 +234,24 @@ describe('Firebase Service Unit Tests', () => {
       expect(updatedShift.submitted_at).toBeDefined();
       expect(new Date(updatedShift.submitted_at).getTime()).not.toBeNaN();
     });
+
+    it('should submit shift signatures with tillReport and save till status and discrepancy', async () => {
+      const { submitShiftSignatures } = firebaseModule;
+      const signatures = [
+        { employeeId: 'EMP_01', name: 'Alice Smith', timestamp: new Date().toISOString() }
+      ];
+      const tillReport = {
+        till_status: 'under',
+        till_discrepancy_amount: 12.50
+      };
+
+      const updatedShift = await submitShiftSignatures(shiftId, signatures, tillReport);
+
+      expect(updatedShift.status).toBe('submitted');
+      expect(updatedShift.signatures).toEqual(signatures);
+      expect(updatedShift.till_status).toBe('under');
+      expect(updatedShift.till_discrepancy_amount).toBe(12.50);
+    });
   });
 
   describe('simulateDailyCleanup', () => {

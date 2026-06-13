@@ -21,6 +21,51 @@ const DevControlPanel = ({
   });
   const [consoleLogs, setConsoleLogs] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState(() => {
+    return localStorage.getItem('stop_go_discord_webhook_url') || "";
+  });
+  const [isSendingTest, setIsSendingTest] = useState(false);
+
+  const handleDiscordWebhookChange = (val) => {
+    setDiscordWebhookUrl(val);
+    localStorage.setItem('stop_go_discord_webhook_url', val);
+  };
+
+  const handleTestDiscordNotification = async () => {
+    if (!discordWebhookUrl) {
+      alert("Please enter a Discord Webhook URL first.");
+      return;
+    }
+    setIsSendingTest(true);
+    setConsoleLogs(prev => prev + `[${new Date().toLocaleTimeString()}] Sending test Discord notification...\n`);
+    try {
+      const payload = {
+        content: "🔔 **Stop & Go Chores Notification Test** 🔔",
+        embeds: [{
+          title: "Webhook Configuration Test",
+          description: "If you see this message, your Stop & Go webhook configuration is working perfectly!",
+          color: 3066993, // Green
+          timestamp: new Date().toISOString()
+        }]
+      };
+      const response = await fetch(discordWebhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (response.ok) {
+        setConsoleLogs(prev => prev + `[${new Date().toLocaleTimeString()}] Test notification sent successfully!\n`);
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (err) {
+      setConsoleLogs(prev => prev + `[ERROR] Failed to send test notification: ${err?.message || err}\n`);
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
 
   // Sync inputs with config if it changes
   useEffect(() => {
@@ -240,6 +285,40 @@ const DevControlPanel = ({
             )}
           </div>
         </form>
+      </div>
+
+      {/* Discord Webhook Setup */}
+      <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <h4 
+          style={{ 
+            fontFamily: 'var(--font-display)', 
+            fontWeight: 500, 
+            fontSize: '1rem',
+            color: 'var(--text-primary)',
+            marginBottom: '4px'
+          }}
+        >
+          Discord Webhook Notification
+        </h4>
+        <div className="form-group">
+          <label style={{ fontSize: '0.7rem' }}>Webhook URL</label>
+          <input
+            type="text"
+            className="form-input"
+            value={discordWebhookUrl}
+            onChange={(e) => handleDiscordWebhookChange(e.target.value)}
+            placeholder="https://discord.com/api/webhooks/..."
+          />
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary w-full"
+          style={{ fontSize: '0.8rem', padding: '6px 12px', marginTop: '4px' }}
+          onClick={handleTestDiscordNotification}
+          disabled={isSendingTest || !discordWebhookUrl}
+        >
+          {isSendingTest ? "Sending..." : "Send Test Notification"}
+        </button>
       </div>
 
       {/* Simulated Cron Actions */}
