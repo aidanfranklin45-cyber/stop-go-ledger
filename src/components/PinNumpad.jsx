@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Delete } from 'lucide-react';
 
 const PinNumpad = ({ title = "Enter PIN", pinLength = 4, onPinComplete, onCancel, error }) => {
   const [pin, setPin] = useState("");
-  const [prevError, setPrevError] = useState(error || "");
 
-  const normalizedError = error || "";
-  // React pattern to adjust state on prop change during render
-  if (normalizedError !== prevError) {
+  // Clear PIN when an error occurs
+  useEffect(() => {
+    if (error) {
+      setPin("");
+    }
+  }, [error]);
+
+  // Reset PIN when the target title changes (meaning context changed to a different employee)
+  useEffect(() => {
     setPin("");
-    setPrevError(normalizedError);
-  }
+  }, [title]);
 
   const handleNumberPress = (num) => {
     if (pin.length < pinLength) {
