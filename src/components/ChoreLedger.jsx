@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Wrench, 
   Sparkles, 
@@ -169,7 +170,7 @@ const ChoreLedger = ({
       )}
 
       {/* Global Operator Picker Modal */}
-      {activePickerTaskId && (
+      {activePickerTaskId && createPortal(
         <div className="modal-overlay" onClick={() => setActivePickerTaskId(null)}>
           <div 
             className="modal-content glass-panel animate-fade-in" 
@@ -237,7 +238,8 @@ const ChoreLedger = ({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

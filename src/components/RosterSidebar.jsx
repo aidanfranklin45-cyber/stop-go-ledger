@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Trash2, UserPlus } from 'lucide-react';
 import PinNumpad from './PinNumpad';
 
@@ -158,7 +159,7 @@ const RosterSidebar = ({
       )}
 
       {/* Add Member Modal Overlay */}
-      {isOpen && (
+      {isOpen && createPortal(
         <div className="modal-overlay" onClick={handleCloseModal}>
           <div 
             className="modal-content glass-panel" 
@@ -253,7 +254,8 @@ const RosterSidebar = ({
               />
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
