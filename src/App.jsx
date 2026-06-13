@@ -33,12 +33,15 @@ import RosterSidebar from './components/RosterSidebar';
 import ChoreLedger from './components/ChoreLedger';
 import VerificationScreen from './components/VerificationScreen';
 import DevControlPanel from './components/DevControlPanel';
+import HistoryViewer from './components/HistoryViewer';
+import ChoreManager from './components/ChoreManager';
 
 function App() {
   // --- UI & Panel states ---
   const [isDevOpen, setIsDevOpen] = useState(false);
   const [appError, setAppError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [currentTab, setCurrentTab] = useState('dashboard');
 
   // --- Database state ---
   const [isLive, setIsLive] = useState(false);
@@ -336,6 +339,34 @@ function App() {
           <p>Dynamic Chores List</p>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="nav-tabs" style={{ display: 'flex', gap: '8px' }}>
+          <button 
+            type="button"
+            className={`btn ${currentTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setCurrentTab('dashboard')}
+            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+          >
+            Dashboard
+          </button>
+          <button 
+            type="button"
+            className={`btn ${currentTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setCurrentTab('history')}
+            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+          >
+            Shift History
+          </button>
+          <button 
+            type="button"
+            className={`btn ${currentTab === 'chores_manager' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setCurrentTab('chores_manager')}
+            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+          >
+            Manage Chores
+          </button>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* Status badge */}
           {currentShift ? (
@@ -408,6 +439,10 @@ function App() {
           <p style={{ color: 'var(--text-secondary)' }}>Synchronizing Ledger State...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
+      ) : currentTab === 'history' ? (
+        <HistoryViewer onBack={() => setCurrentTab('dashboard')} />
+      ) : currentTab === 'chores_manager' ? (
+        <ChoreManager onBack={() => setCurrentTab('dashboard')} />
       ) : appError && !selectedInitEmployee ? (
         <div className="glass-panel animate-fade-in" style={{ padding: '24px', textAlign: 'center', maxWidth: '500px', margin: '40px auto', borderLeft: '4px solid var(--accent-red)' }}>
           <h3 style={{ color: 'var(--accent-red)', marginBottom: '8px', fontSize: '1.2rem' }}>Operational Error</h3>

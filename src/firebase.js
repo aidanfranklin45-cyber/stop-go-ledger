@@ -7,6 +7,7 @@ import {
   getDocs, 
   setDoc, 
   updateDoc, 
+  deleteDoc,
   serverTimestamp 
 } from 'firebase/firestore';
 
@@ -253,7 +254,8 @@ export async function getActiveShift(shiftId) {
 }
 
 export async function startShift(shiftId, shiftType, date, activeTeamPids) {
-  const taskTemplate = shiftType === 'opening' ? OPENING_TASKS : CLOSING_TASKS;
+  const allTemplates = await getChoreTemplates();
+  const taskTemplate = allTemplates.filter(t => t.shift_type === shiftType);
   const initialTasks = {};
   
   taskTemplate.forEach(t => {
@@ -317,7 +319,8 @@ export async function startShift(shiftId, shiftType, date, activeTeamPids) {
 
 export async function seedTestScenario(shiftId, shiftType, date) {
   const activeTeamPids = ["EMP_01", "EMP_03", "EMP_04"]; // Alice, Charlie, David
-  const taskTemplate = shiftType === 'opening' ? OPENING_TASKS : CLOSING_TASKS;
+  const allTemplates = await getChoreTemplates();
+  const taskTemplate = allTemplates.filter(t => t.shift_type === shiftType);
   const initialTasks = {};
   
   const teamList = [
@@ -731,4 +734,116 @@ export async function simulateDailyCleanup() {
 
   localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(mockShifts));
   return analyticsPayloads;
+}
+
+const MOCK_KEY_TEMPLATES = 'stop_go_mock_chore_templates';
+
+export async function getChoreTemplates() {
+  if (isLiveMode()) {
+    try {
+      const snap = await getDocs(collection(db, 'chore_templates'));
+      const list = [];
+      snap.forEach(doc => {
+        list.push(doc.data());
+      });
+      if (list.length === 0) {
+        const seeded = [];
+        for (const t of OPENING_TASKS) {
+          const docRef = doc(db, 'chore_templates', t.id);
+          const data = { id: t.id, name: t.name, cat: t.cat, shift_type: 'opening' };
+          await setDoc(docRef, data);
+          seeded.push(data);
+        }
+        for (const t of CLOSING_TASKS) {
+          const docRef = doc(db, 'chore_templates', t.id);
+          const data = { id: t.id, name: t.name, cat: t.cat, shift_type: 'closing' };
+          await setDoc(docRef, data);
+          seeded.push(data);
+        }
+        return seeded;
+      }
+      return list;
+    } catch (e) {
+      console.error("Firestore getChoreTemplates error, falling back to mock:", e);
+    }
+  }
+
+  let stored = localStorage.getItem(MOCK_KEY_TEMPLATES);
+  if (!stored) {
+    const defaultTemplates = [];
+    OPENING_TASKS.forEach(t => {
+      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'opening' });
+    });
+    CLOSING_TASKS.forEach(t => {
+      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'closing' });
+    });
+    localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(defaultTemplates));
+    return defaultTemplates;
+  }
+  return JSON.parse(stored);
+}
+
+export async function addChoreTemplate(chore) {
+  const newId = `CT_${Date.now()}`;
+  const data = {
+    id: newId,
+    name: chore.name,
+    cat: chore.cat,
+    shift_type: chore.shift_type
+  };
+
+  if (isLiveMode()) {
+    try {
+      const docRef = doc(db, 'chore_templates', newId);
+      await setDoc(docRef, data);
+      return data;
+    } catch (e) {
+      console.error("Firestore addChoreTemplate error:", e);
+    }
+  }
+
+  const list = await getChoreTemplates();
+  list.push(data);
+  localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(list));
+  return data;
+}
+
+export async function deleteChoreTemplate(id) {
+  if (isLiveMode()) {
+    try {
+      const docRef = doc(db, 'chore_templates', id);
+      await deleteDoc(docRef);
+      return true;
+    } catch (e) {
+      console.error("Firestore deleteChoreTemplate error:", e);
+      return false;
+    }
+  }
+
+  const list = await getChoreTemplates();
+  const filtered = list.filter(t => t.id !== id);
+  localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(filtered));
+  return true;
+}
+
+export async function getSubmittedShifts() {
+  if (isLiveMode()) {
+    try {
+      const snap = await getDocs(collection(db, 'active_shifts'));
+      const list = [];
+      snap.forEach(doc => {
+        const data = doc.data();
+        if (data.status === 'submitted' || data.status === 'missed_cleanup') {
+          list.push(data);
+        }
+      });
+      return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
+    } catch (e) {
+      console.error("Firestore getSubmittedShifts error:", e);
+    }
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  const list = Object.values(shifts).filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
+  return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
 }

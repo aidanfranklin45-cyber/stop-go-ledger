@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { 
   Wrench, 
   Sparkles, 
@@ -34,7 +33,17 @@ const ChoreLedger = ({
   onTaskToggle, 
   selectedCategory = 'All' 
 }) => {
-  const [activePickerTaskId, setActivePickerTaskId] = useState(null);
+  const [selectedOperatorId, setSelectedOperatorId] = useState(null);
+
+  const formatTime = (isoString) => {
+    if (!isoString) return "";
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return "";
+    }
+  };
 
   const getCategoryIcon = (category) => {
     switch (category?.toLowerCase()) {
@@ -51,16 +60,6 @@ const ChoreLedger = ({
     }
   };
 
-  const formatTime = (isoString) => {
-    if (!isoString) return "";
-    try {
-      const d = new Date(isoString);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return "";
-    }
-  };
-
   const tasks = shift?.tasks ? Object.values(shift.tasks) : [];
 
   // Filter tasks based on selectedCategory (ignore casing)
@@ -68,18 +67,82 @@ const ChoreLedger = ({
     ? tasks.filter(t => t.category?.toLowerCase() === selectedCategory.toLowerCase())
     : tasks;
 
+  // Resolve current active operator for one-tap clicks
+  const currentActiveOp = activeTeam.find(t => (t.employee_id || t.id) === selectedOperatorId) || activeTeam[0];
+  const activeOpId = currentActiveOp ? (currentActiveOp.employee_id || currentActiveOp.id) : null;
+  const activeOpName = currentActiveOp ? (currentActiveOp.employee_name || currentActiveOp.name) : "";
+
   const handleCardClick = (task) => {
     if (task.is_completed) {
       if (window.confirm(`Mark "${task.task_name}" as incomplete?`)) {
         onTaskToggle(task.task_id, false, null, null);
       }
     } else {
-      setActivePickerTaskId(task.task_id);
+      if (!activeOpId) {
+        alert("Please check in or select an operator from the list first.");
+        return;
+      }
+      onTaskToggle(task.task_id, true, activeOpId, activeOpName);
     }
   };
 
   return (
     <div className="ledger-container animate-fade-in">
+      {/* Active Operator Selection Bar */}
+      <div className="glass-panel" style={{ padding: '16px', marginBottom: '8px', display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(255,255,255,0.45)' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Completing Chores As:
+        </span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          {activeTeam.length === 0 ? (
+            <span style={{ fontSize: '0.85rem', color: 'var(--accent-red)', fontWeight: 500 }}>
+              ⚠️ No checked-in operators. Tap "+ Add Member" in the sidebar to log in.
+            </span>
+          ) : (
+            activeTeam.map(member => {
+              const id = member.employee_id || member.id;
+              const name = member.employee_name || member.name;
+              const isSelected = id === activeOpId;
+              const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ 
+                    padding: '8px 16px', 
+                    borderRadius: '20px', 
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  onClick={() => setSelectedOperatorId(id)}
+                >
+                  <div 
+                    style={{ 
+                      width: '20px', 
+                      height: '20px', 
+                      borderRadius: '50%', 
+                      background: isSelected ? '#ffffff' : 'var(--primary)',
+                      color: isSelected ? 'var(--primary)' : '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.65rem',
+                      fontWeight: 700
+                    }}
+                  >
+                    {initials}
+                  </div>
+                  <span>{name}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+
       {tasks.length === 0 ? (
         <div 
           className="glass-panel" 
@@ -89,7 +152,6 @@ const ChoreLedger = ({
         </div>
       ) : (
         CATEGORIES.map(category => {
-          // Filter tasks belonging to the current category loop
           const categoryTasks = filteredTasks.filter(
             t => t.category?.toLowerCase() === category.toLowerCase()
           );
@@ -167,79 +229,6 @@ const ChoreLedger = ({
             </div>
           );
         })
-      )}
-
-      {/* Global Operator Picker Modal */}
-      {activePickerTaskId && createPortal(
-        <div className="modal-overlay" onClick={() => setActivePickerTaskId(null)}>
-          <div 
-            className="modal-content glass-panel animate-fade-in" 
-            style={{ maxWidth: '400px', width: '100%', padding: '24px' }} 
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 
-              style={{ 
-                fontFamily: 'var(--font-display)', 
-                fontWeight: 600, 
-                fontSize: '1.25rem',
-                color: 'var(--text-primary)',
-                marginBottom: '12px' 
-              }}
-            >
-              Assign Completion
-            </h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.4' }}>
-              {tasks.find(t => t.task_id === activePickerTaskId)?.task_name}
-            </p>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {activeTeam.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '12px' }}>
-                  <p style={{ color: 'var(--accent-red)', fontSize: '0.85rem', marginBottom: '16px', lineHeight: '1.4' }}>
-                    Please check in at least one operator in the sidebar before completing tasks.
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-secondary w-full"
-                    onClick={() => setActivePickerTaskId(null)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {activeTeam.map(member => {
-                    const mId = member.employee_id || member.id;
-                    const mName = member.employee_name || member.name;
-                    return (
-                      <button
-                        key={mId}
-                        type="button"
-                        className="btn btn-primary w-full"
-                        style={{ padding: '12px' }}
-                        onClick={() => {
-                          onTaskToggle(activePickerTaskId, true, mId, mName);
-                          setActivePickerTaskId(null);
-                        }}
-                      >
-                        {mName}
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    className="btn btn-secondary w-full"
-                    style={{ marginTop: '8px' }}
-                    onClick={() => setActivePickerTaskId(null)}
-                  >
-                    Cancel
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
       )}
     </div>
   );

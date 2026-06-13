@@ -396,4 +396,68 @@ describe('Firebase Service Unit Tests', () => {
       expect(task15.timestamp).toBeNull();
     });
   });
+
+  describe('Chore Templates CRUD & Shift History Queries', () => {
+    beforeEach(() => {
+      globalThis.localStorage.clear();
+      globalThis.localStorage.setItem('stop_go_mock_shifts', JSON.stringify({}));
+      globalThis.localStorage.removeItem('stop_go_mock_chore_templates');
+    });
+
+    it('should fetch default templates when unseeded and filter by shift type', async () => {
+      const { getChoreTemplates } = firebaseModule;
+      const templates = await getChoreTemplates();
+      expect(templates).toBeDefined();
+      expect(templates.length).toBeGreaterThan(0);
+      
+      const opening = templates.filter(t => t.shift_type === 'opening');
+      const closing = templates.filter(t => t.shift_type === 'closing');
+      expect(opening.length).toBe(24);
+      expect(closing.length).toBe(27);
+    });
+
+    it('should support adding and deleting chore templates', async () => {
+      const { getChoreTemplates, addChoreTemplate, deleteChoreTemplate } = firebaseModule;
+      
+      const initial = await getChoreTemplates();
+      const initialLength = initial.length;
+
+      const newChore = await addChoreTemplate({
+        name: "Test Custom Task",
+        cat: "Facilities",
+        shift_type: "opening"
+      });
+
+      expect(newChore).toBeDefined();
+      expect(newChore.id).toBeDefined();
+      expect(newChore.name).toBe("Test Custom Task");
+      expect(newChore.cat).toBe("Facilities");
+
+      const afterAdd = await getChoreTemplates();
+      expect(afterAdd.length).toBe(initialLength + 1);
+      expect(afterAdd.find(t => t.id === newChore.id)).toBeDefined();
+
+      const success = await deleteChoreTemplate(newChore.id);
+      expect(success).toBe(true);
+
+      const afterDelete = await getChoreTemplates();
+      expect(afterDelete.length).toBe(initialLength);
+      expect(afterDelete.find(t => t.id === newChore.id)).toBeUndefined();
+    });
+
+    it('should return submitted shifts sorted descending', async () => {
+      const { startShift, submitShiftSignatures, getSubmittedShifts } = firebaseModule;
+      
+      await startShift('shift_hist_01', 'opening', '2026-06-11', ['EMP_01']);
+      await startShift('shift_hist_02', 'closing', '2026-06-12', ['EMP_01']);
+      
+      await submitShiftSignatures('shift_hist_01', [{ name: "Alice" }]);
+      await submitShiftSignatures('shift_hist_02', [{ name: "Bob" }]);
+
+      const history = await getSubmittedShifts();
+      expect(history.length).toBe(2);
+      expect(history[0].shift_id).toBe('shift_hist_02');
+      expect(history[1].shift_id).toBe('shift_hist_01');
+    });
+  });
 });
