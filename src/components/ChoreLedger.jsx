@@ -1,4 +1,4 @@
-import { useState } from 'react';
+
 import { 
   Wrench, 
   Sparkles, 
@@ -31,9 +31,10 @@ const ChoreLedger = ({
   shift, 
   activeTeam = [], 
   onTaskToggle, 
-  selectedCategory = 'All' 
+  selectedCategory = 'All',
+  selectedOperatorId,
+  setSelectedOperatorId
 }) => {
-  const [selectedOperatorId, setSelectedOperatorId] = useState(null);
 
   const formatTime = (isoString) => {
     if (!isoString) return "";
@@ -117,7 +118,10 @@ const ChoreLedger = ({
                     alignItems: 'center',
                     gap: '6px'
                   }}
-                  onClick={() => setSelectedOperatorId(id)}
+                  onClick={() => {
+                    setSelectedOperatorId(id);
+                    localStorage.setItem('stop_go_selected_operator_id', id);
+                  }}
                 >
                   <div 
                     style={{ 

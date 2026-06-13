@@ -49,6 +49,9 @@ function App() {
   
   // --- Shift state ---
   const [currentShift, setCurrentShift] = useState(null); // Full shift document from db
+  const [selectedOperatorId, setSelectedOperatorId] = useState(() => {
+    return localStorage.getItem('stop_go_selected_operator_id') || null;
+  });
 
   // --- State 01: Setup Roster state ---
   const [initTeamPids, setInitTeamPids] = useState([]);
@@ -90,6 +93,16 @@ function App() {
       
       if (shift) {
         setCurrentShift(shift);
+        const storedId = localStorage.getItem('stop_go_selected_operator_id');
+        if (shift.active_team_pids && shift.active_team_pids.length > 0) {
+          if (!storedId || !shift.active_team_pids.includes(storedId)) {
+            const firstId = shift.active_team_pids[0];
+            setSelectedOperatorId(firstId);
+            localStorage.setItem('stop_go_selected_operator_id', firstId);
+          } else {
+            setSelectedOperatorId(storedId);
+          }
+        }
       } else {
         setCurrentShift(null);
       }
@@ -171,6 +184,12 @@ function App() {
       const shiftId = `${initDate}_${initShiftType}`;
       const shift = await startShift(shiftId, initShiftType, initDate, initTeamPids);
       setCurrentShift(shift);
+      // Automatically select the first checked-in operator if none is selected or not in team
+      if (!selectedOperatorId || !initTeamPids.includes(selectedOperatorId)) {
+        const firstId = initTeamPids[0];
+        setSelectedOperatorId(firstId);
+        localStorage.setItem('stop_go_selected_operator_id', firstId);
+      }
       setAppError(null);
     } catch (err) {
       console.error(err);
@@ -183,7 +202,6 @@ function App() {
   // --- State 02 Operations ---
   const handleTaskToggle = async (taskId, isCompleted, employeeId = null, employeeName = null) => {
     if (!currentShift) return;
-    setLoading(true);
     try {
       const updated = await updateTask(
         currentShift.shift_id,
@@ -198,8 +216,6 @@ function App() {
     } catch (err) {
       console.error(err);
       setAppError("Failed to update task completion.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -211,6 +227,11 @@ function App() {
       const updated = await updateShiftRoster(currentShift.shift_id, newPids);
       if (updated) {
         setCurrentShift(updated);
+        // If no operator is selected, select the new member
+        if (!selectedOperatorId) {
+          setSelectedOperatorId(empId);
+          localStorage.setItem('stop_go_selected_operator_id', empId);
+        }
       }
       setAppError(null);
       return true;
@@ -225,19 +246,22 @@ function App() {
       setAppError("Active shifts must retain at least one checked-in employee.");
       return;
     }
-    setLoading(true);
     try {
       const newPids = currentShift.active_team_pids.filter(pid => pid !== empId);
       const updated = await updateShiftRoster(currentShift.shift_id, newPids);
       if (updated) {
         setCurrentShift(updated);
+        // If the removed member was selected, default to the first remaining member
+        if (selectedOperatorId === empId) {
+          const fallbackId = newPids[0];
+          setSelectedOperatorId(fallbackId);
+          localStorage.setItem('stop_go_selected_operator_id', fallbackId);
+        }
       }
       setAppError(null);
     } catch (err) {
       console.error(err);
       setAppError("Failed to update roster card lists.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -717,6 +741,15 @@ function App() {
               shift={currentShift}
               activeTeam={activeTeamObjects}
               onTaskToggle={handleTaskToggle}
+              selectedOperatorId={selectedOperatorId}
+              setSelectedOperatorId={(id) => {
+                setSelectedOperatorId(id);
+                if (id) {
+                  localStorage.setItem('stop_go_selected_operator_id', id);
+                } else {
+                  localStorage.removeItem('stop_go_selected_operator_id');
+                }
+              }}
             />
           </div>
         </div>
