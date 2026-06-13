@@ -4,6 +4,10 @@ on:
   push:
     branches: [ "main" ]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+
 # Allow Actions to read contents and write to GitHub Pages deployments
 permissions:
   contents: read
