@@ -5,6 +5,7 @@ import {
   AlertTriangle, 
   Calendar, 
   Users, 
+  User,
   ShieldCheck, 
   TrendingUp, 
   TrendingDown, 
