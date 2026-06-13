@@ -341,7 +341,7 @@ function App() {
               
               {currentShift.status === 'open' && (
                 <span className="badge badge-open">
-                  <Clock size={12} /> Open ({getProgressPercent()}%)
+                  <Clock size={12} /> {currentShift.shift_type === 'closing' ? 'Closing' : 'Opening'} ({getProgressPercent()}%)
                 </span>
               )}
               {currentShift.status === 'pending_signatures' && (

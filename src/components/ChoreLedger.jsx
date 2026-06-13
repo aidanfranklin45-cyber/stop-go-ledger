@@ -126,95 +126,8 @@ const ChoreLedger = ({
                       key={task.task_id} 
                       className={cardClass}
                       onClick={() => handleCardClick(task)}
-                      style={{ position: 'relative', overflow: 'hidden' }}
+                      style={{ position: 'relative' }}
                     >
-                      {/* In-place operator picker overlay */}
-                      {activePickerTaskId === task.task_id && (
-                        <div 
-                          style={{ 
-                            position: 'absolute', 
-                            inset: 0, 
-                            background: 'var(--bg-deep)',
-                            borderRadius: 'inherit',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            padding: '8px',
-                            zIndex: 10,
-                            border: '1px solid var(--glass-border-focus)'
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div 
-                            style={{ 
-                              fontSize: '0.75rem', 
-                              color: 'var(--text-secondary)', 
-                              marginBottom: '6px', 
-                              fontWeight: 600,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.05em'
-                            }}
-                          >
-                            Completed By:
-                          </div>
-                          {activeTeam.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '4px' }}>
-                              <p style={{ fontSize: '0.75rem', color: 'var(--accent-red)', marginBottom: '8px' }}>
-                                No checked-in operators.
-                              </p>
-                              <button
-                                type="button"
-                                className="btn btn-secondary"
-                                style={{ padding: '4px 8px', fontSize: '0.7rem' }}
-                                onClick={() => setActivePickerTaskId(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <div 
-                              style={{ 
-                                display: 'flex', 
-                                flexWrap: 'wrap', 
-                                gap: '6px', 
-                                justifyContent: 'center', 
-                                maxWidth: '100%',
-                                maxHeight: '100%',
-                                overflowY: 'auto'
-                              }}
-                            >
-                              {activeTeam.map(member => {
-                                const mId = member.employee_id || member.id;
-                                const mName = member.employee_name || member.name;
-                                return (
-                                  <button
-                                    key={mId}
-                                    type="button"
-                                    className="btn btn-primary"
-                                    style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: 'var(--radius-sm)' }}
-                                    onClick={() => {
-                                      onTaskToggle(task.task_id, true, mId, mName);
-                                      setActivePickerTaskId(null);
-                                    }}
-                                  >
-                                    {mName}
-                                  </button>
-                                );
-                              })}
-                              <button
-                                type="button"
-                                className="btn btn-secondary"
-                                style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: 'var(--radius-sm)' }}
-                                onClick={() => setActivePickerTaskId(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
                       {/* Task Content */}
                       <div className="task-checkbox">
                         {isCompleted && <Check size={14} strokeWidth={3} />}
@@ -253,6 +166,78 @@ const ChoreLedger = ({
             </div>
           );
         })
+      )}
+
+      {/* Global Operator Picker Modal */}
+      {activePickerTaskId && (
+        <div className="modal-overlay" onClick={() => setActivePickerTaskId(null)}>
+          <div 
+            className="modal-content glass-panel animate-fade-in" 
+            style={{ maxWidth: '400px', width: '100%', padding: '24px' }} 
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 
+              style={{ 
+                fontFamily: 'var(--font-display)', 
+                fontWeight: 600, 
+                fontSize: '1.25rem',
+                color: 'var(--text-primary)',
+                marginBottom: '12px' 
+              }}
+            >
+              Assign Completion
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.4' }}>
+              {tasks.find(t => t.task_id === activePickerTaskId)?.task_name}
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {activeTeam.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '12px' }}>
+                  <p style={{ color: 'var(--accent-red)', fontSize: '0.85rem', marginBottom: '16px', lineHeight: '1.4' }}>
+                    Please check in at least one operator in the sidebar before completing tasks.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary w-full"
+                    onClick={() => setActivePickerTaskId(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {activeTeam.map(member => {
+                    const mId = member.employee_id || member.id;
+                    const mName = member.employee_name || member.name;
+                    return (
+                      <button
+                        key={mId}
+                        type="button"
+                        className="btn btn-primary w-full"
+                        style={{ padding: '12px' }}
+                        onClick={() => {
+                          onTaskToggle(activePickerTaskId, true, mId, mName);
+                          setActivePickerTaskId(null);
+                        }}
+                      >
+                        {mName}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="btn btn-secondary w-full"
+                    style={{ marginTop: '8px' }}
+                    onClick={() => setActivePickerTaskId(null)}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
