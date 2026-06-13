@@ -13,9 +13,11 @@ import {
   Home,
   ShieldAlert,
   DollarSign,
-  Store
+  Store,
+  Pencil,
+  X
 } from 'lucide-react';
-import { getEmployees, validateEmployeePin, getChoreTemplates, addChoreTemplate, deleteChoreTemplate } from '../firebase';
+import { getEmployees, validateEmployeePin, getChoreTemplates, addChoreTemplate, deleteChoreTemplate, updateChoreTemplate } from '../firebase';
 import PinNumpad from './PinNumpad';
 
 const CATEGORIES = [
@@ -41,6 +43,7 @@ const ChoreManager = ({ onBack }) => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterShiftType, setFilterShiftType] = useState('opening');
+  const [editingChore, setEditingChore] = useState(null);
   
   // Form input states
   const [newName, setNewName] = useState("");
@@ -95,16 +98,25 @@ const ChoreManager = ({ onBack }) => {
     }
   };
 
-  const handleAddChore = async (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (!newName.trim()) return;
 
     try {
-      await addChoreTemplate({
-        name: newName.trim(),
-        cat: newCategory,
-        shift_type: newShiftType
-      });
+      if (editingChore) {
+        await updateChoreTemplate(editingChore.id, {
+          name: newName.trim(),
+          cat: newCategory,
+          shift_type: newShiftType
+        });
+        setEditingChore(null);
+      } else {
+        await addChoreTemplate({
+          name: newName.trim(),
+          cat: newCategory,
+          shift_type: newShiftType
+        });
+      }
       setNewName("");
       await loadTemplates();
     } catch (err) {
@@ -112,7 +124,24 @@ const ChoreManager = ({ onBack }) => {
     }
   };
 
+  const handleStartEdit = (chore) => {
+    setEditingChore(chore);
+    setNewName(chore.name);
+    setNewCategory(chore.cat);
+    setNewShiftType(chore.shift_type);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingChore(null);
+    setNewName("");
+    setNewCategory("Equipment");
+    setNewShiftType(filterShiftType);
+  };
+
   const handleDeleteChore = async (id, name) => {
+    if (editingChore && editingChore.id === id) {
+      handleCancelEdit();
+    }
     if (window.confirm(`Are you sure you want to delete the chore "${name}"?`)) {
       try {
         await deleteChoreTemplate(id);
@@ -156,7 +185,7 @@ const ChoreManager = ({ onBack }) => {
           Manager Verification Required
         </h2>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
-          Please verify your manager authorization PIN code to access chore template settings.
+          Please verify your manager authorization PIN code to access chore settings.
         </p>
 
         {selectedManagerId === null ? (
@@ -219,16 +248,21 @@ const ChoreManager = ({ onBack }) => {
             >
               <ArrowLeft size={16} />
             </button>
-            <h2 style={{ fontSize: '1.4rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>Chore Templates Manager</h2>
+            <h2 style={{ fontSize: '1.4rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>Chore Manager</h2>
           </div>
 
-          {/* Toggle opening / closing templates */}
+          {/* Toggle opening / closing chores */}
           <div style={{ display: 'flex', gap: '6px' }}>
             <button
               type="button"
               className={`btn ${filterShiftType === 'opening' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '0.8rem' }}
-              onClick={() => setFilterShiftType('opening')}
+              onClick={() => {
+                setFilterShiftType('opening');
+                if (editingChore && editingChore.shift_type !== 'opening') {
+                  handleCancelEdit();
+                }
+              }}
             >
               Opening Chores
             </button>
@@ -236,7 +270,12 @@ const ChoreManager = ({ onBack }) => {
               type="button"
               className={`btn ${filterShiftType === 'closing' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '0.8rem' }}
-              onClick={() => setFilterShiftType('closing')}
+              onClick={() => {
+                setFilterShiftType('closing');
+                if (editingChore && editingChore.shift_type !== 'closing') {
+                  handleCancelEdit();
+                }
+              }}
             >
               Closing Chores
             </button>
@@ -250,7 +289,7 @@ const ChoreManager = ({ onBack }) => {
         ) : filteredTemplates.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 10px', color: 'var(--text-secondary)', flexGrow: 1 }}>
             <ClipboardList size={36} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
-            <h3>No Chore Templates Seeding</h3>
+            <h3>No Chores Seeded</h3>
             <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>Use the form on the right to add chores to the {filterShiftType} shift.</p>
           </div>
         ) : (
@@ -261,7 +300,7 @@ const ChoreManager = ({ onBack }) => {
                 className="member-item" 
                 style={{ 
                   background: '#ffffff', 
-                  borderColor: 'rgba(15,23,42,0.06)',
+                  borderColor: editingChore?.id === t.id ? 'var(--primary)' : 'rgba(15,23,42,0.06)',
                   padding: '10px 16px',
                   display: 'flex',
                   alignItems: 'center',
@@ -283,37 +322,69 @@ const ChoreManager = ({ onBack }) => {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleDeleteChore(t.id, t.name)}
-                  style={{ 
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    padding: '6px',
-                    borderRadius: '50%',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.background = 'var(--accent-red-glow)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
-                  title="Delete Template"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleStartEdit(t)}
+                    style={{ 
+                      background: 'transparent',
+                      border: 'none',
+                      color: editingChore?.id === t.id ? 'var(--primary)' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '6px',
+                      borderRadius: '50%',
+                      transition: 'all 0.2s',
+                      backgroundColor: editingChore?.id === t.id ? 'var(--primary-glow)' : 'transparent'
+                    }}
+                    onMouseEnter={(e) => { 
+                      if (editingChore?.id !== t.id) {
+                        e.currentTarget.style.color = 'var(--primary)'; 
+                        e.currentTarget.style.background = 'var(--primary-glow)'; 
+                      }
+                    }}
+                    onMouseLeave={(e) => { 
+                      if (editingChore?.id !== t.id) {
+                        e.currentTarget.style.color = 'var(--text-muted)'; 
+                        e.currentTarget.style.background = 'transparent'; 
+                      }
+                    }}
+                    title="Edit Chore"
+                  >
+                    <Pencil size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteChore(t.id, t.name)}
+                    style={{ 
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '6px',
+                      borderRadius: '50%',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.background = 'var(--accent-red-glow)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+                    title="Delete Chore"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Right Column: Add Chore Panel */}
+      {/* Right Column: Add/Edit Chore Panel */}
       <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', height: 'fit-content' }}>
         <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1.15rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '10px' }}>
-          Add New Chore Template
+          {editingChore ? 'Edit Chore' : 'Add New Chore'}
         </h3>
 
-        <form onSubmit={handleAddChore} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="form-group">
             <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Chore Description</label>
             <textarea
@@ -363,15 +434,28 @@ const ChoreManager = ({ onBack }) => {
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="btn btn-success w-full"
-            style={{ padding: '12px', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-            disabled={!newName.trim()}
-          >
-            <Plus size={18} />
-            <span>Add Chore Template</span>
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+            <button
+              type="submit"
+              className="btn btn-success w-full"
+              style={{ padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              disabled={!newName.trim()}
+            >
+              {editingChore ? <ShieldCheck size={18} /> : <Plus size={18} />}
+              <span>{editingChore ? 'Save Changes' : 'Add Chore'}</span>
+            </button>
+            {editingChore && (
+              <button
+                type="button"
+                className="btn btn-secondary w-full"
+                style={{ padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                onClick={handleCancelEdit}
+              >
+                <X size={14} />
+                <span>Cancel Edit</span>
+              </button>
+            )}
+          </div>
         </form>
       </div>
 

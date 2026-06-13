@@ -445,6 +445,35 @@ describe('Firebase Service Unit Tests', () => {
       expect(afterDelete.find(t => t.id === newChore.id)).toBeUndefined();
     });
 
+    it('should support updating chore templates', async () => {
+      const { getChoreTemplates, addChoreTemplate, updateChoreTemplate } = firebaseModule;
+
+      const newChore = await addChoreTemplate({
+        name: "Update Test Task",
+        cat: "Facilities",
+        shift_type: "opening"
+      });
+
+      const updated = await updateChoreTemplate(newChore.id, {
+        name: "Renamed Test Task",
+        cat: "Heavy Clean",
+        shift_type: "closing"
+      });
+
+      expect(updated).toBeDefined();
+      expect(updated.id).toBe(newChore.id);
+      expect(updated.name).toBe("Renamed Test Task");
+      expect(updated.cat).toBe("Heavy Clean");
+      expect(updated.shift_type).toBe("closing");
+
+      const afterUpdate = await getChoreTemplates();
+      const fetched = afterUpdate.find(t => t.id === newChore.id);
+      expect(fetched).toBeDefined();
+      expect(fetched.name).toBe("Renamed Test Task");
+      expect(fetched.cat).toBe("Heavy Clean");
+      expect(fetched.shift_type).toBe("closing");
+    });
+
     it('should return submitted shifts sorted descending', async () => {
       const { startShift, submitShiftSignatures, getSubmittedShifts } = firebaseModule;
       

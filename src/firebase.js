@@ -825,6 +825,33 @@ export async function deleteChoreTemplate(id) {
   localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(filtered));
   return true;
 }
+export async function updateChoreTemplate(id, chore) {
+  const data = {
+    id: id,
+    name: chore.name,
+    cat: chore.cat,
+    shift_type: chore.shift_type
+  };
+
+  if (isLiveMode()) {
+    try {
+      const docRef = doc(db, 'chore_templates', id);
+      await setDoc(docRef, data);
+      return data;
+    } catch (e) {
+      console.error("Firestore updateChoreTemplate error:", e);
+    }
+  }
+
+  const list = await getChoreTemplates();
+  const idx = list.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    list[idx] = data;
+    localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(list));
+    return data;
+  }
+  return null;
+}
 
 export async function getSubmittedShifts() {
   if (isLiveMode()) {
