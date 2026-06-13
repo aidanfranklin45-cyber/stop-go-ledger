@@ -24,11 +24,30 @@ const HistoryViewer = ({ onBack }) => {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   
+  // Manager authentication for entry
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [selectedEntryManagerId, setSelectedEntryManagerId] = useState(null);
+  const [entryPinError, setEntryPinError] = useState("");
+
   // Manager authentication for deletion
   const [showPinGate, setShowPinGate] = useState(false);
   const [managers, setManagers] = useState([]);
   const [selectedManagerId, setSelectedManagerId] = useState(null);
   const [pinError, setPinError] = useState("");
+
+  const loadManagers = useCallback(async () => {
+    try {
+      const emps = await getEmployees();
+      setAllEmployees(emps.filter(e => e.role === 'manager' && e.is_active));
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadManagers();
+  }, [loadManagers]);
 
   const fetchShifts = useCallback(async () => {
     setLoadingList(true);
@@ -46,8 +65,10 @@ const HistoryViewer = ({ onBack }) => {
   }, []);
 
   useEffect(() => {
-    fetchShifts();
-  }, [fetchShifts]);
+    if (isAuthenticated) {
+      fetchShifts();
+    }
+  }, [isAuthenticated, fetchShifts]);
 
   const fetchShiftDetail = useCallback(async (id) => {
     setLoadingDetail(true);
@@ -111,6 +132,23 @@ const HistoryViewer = ({ onBack }) => {
     }
   };
 
+  const handleEntryPinComplete = async (pin) => {
+    setEntryPinError("");
+    if (!selectedEntryManagerId) return;
+
+    try {
+      const isValid = await validateEmployeePin(selectedEntryManagerId, pin);
+      if (isValid) {
+        setIsAuthenticated(true);
+        setSelectedEntryManagerId(null);
+      } else {
+        setEntryPinError("Invalid manager PIN code.");
+      }
+    } catch (err) {
+      setEntryPinError("PIN verification error.");
+    }
+  };
+
   const formatTime = (isoString) => {
     if (!isoString) return "";
     try {
@@ -142,6 +180,68 @@ const HistoryViewer = ({ onBack }) => {
   };
 
   const groupedTasks = getTasksByCategory();
+
+  // --- RENDERING AUTH GATE ---
+  if (!isAuthenticated) {
+    const managersList = allEmployees;
+
+    return (
+      <div className="glass-panel max-w-md mx-auto w-full text-center p-8 animate-fade-in" style={{ marginTop: '40px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+          <div style={{ background: 'var(--primary-glow)', color: 'var(--primary)', padding: '12px', borderRadius: '50%' }}>
+            <Lock size={32} />
+          </div>
+        </div>
+
+        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.5rem', color: 'var(--text-primary)', marginBottom: '8px' }}>
+          Manager Verification Required
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
+          Please verify your manager authorization PIN code to access historical shift reports.
+        </p>
+
+        {selectedEntryManagerId === null ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {managersList.length === 0 ? (
+              <p style={{ color: 'var(--accent-red)', fontSize: '0.85rem', marginBottom: '16px' }}>
+                No active managers registered.
+              </p>
+            ) : (
+              managersList.map(mgr => (
+                <button
+                  key={mgr.employee_id}
+                  type="button"
+                  className="btn btn-secondary w-full"
+                  style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}
+                  onClick={() => setSelectedEntryManagerId(mgr.employee_id)}
+                >
+                  <span>{mgr.employee_name}</span>
+                  <span className="badge badge-pending" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
+                    Manager
+                  </span>
+                </button>
+              ))
+            )}
+            <button
+              type="button"
+              className="btn btn-danger"
+              style={{ marginTop: '16px' }}
+              onClick={onBack}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <PinNumpad
+            title={`Enter PIN for ${managersList.find(m => m.employee_id === selectedEntryManagerId)?.employee_name}`}
+            onPinComplete={handleEntryPinComplete}
+            onCancel={() => setSelectedEntryManagerId(null)}
+            error={entryPinError}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="main-layout animate-fade-in" style={{ gridTemplateColumns: '320px 1fr' }}>
