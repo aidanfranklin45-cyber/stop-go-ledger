@@ -179,9 +179,40 @@ function App() {
       setAppError("At least one checked-in employee is required to start a shift.");
       return;
     }
+
+    // Check if the selected date matches today's date
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (initDate !== todayStr) {
+      setAppError(`You can only start checklists for the current day (${todayStr}).`);
+      return;
+    }
+
     setLoading(true);
     try {
       const shiftId = `${initDate}_${initShiftType}`;
+      
+      // Check if shift already exists
+      const existing = await getActiveShift(shiftId);
+      if (existing) {
+        if (existing.status === 'submitted' || existing.status === 'missed_cleanup') {
+          setAppError(`A ${initShiftType} shift checklist has already been submitted and sealed for ${initDate}. Only one opening and one closing checklist are allowed per day.`);
+          setLoading(false);
+          return;
+        } else {
+          // If it is open/pending, just resume it
+          setCurrentShift(existing);
+          if (!selectedOperatorId || !existing.active_team_pids.includes(selectedOperatorId)) {
+            const firstId = existing.active_team_pids[0];
+            setSelectedOperatorId(firstId);
+            localStorage.setItem('stop_go_selected_operator_id', firstId);
+          }
+          setAppError(null);
+          setLoading(false);
+          return;
+        }
+      }
+
       const shift = await startShift(shiftId, initShiftType, initDate, initTeamPids);
       setCurrentShift(shift);
       // Automatically select the first checked-in operator if none is selected or not in team
@@ -527,7 +558,8 @@ function App() {
                   type="date" 
                   className="form-input" 
                   value={initDate} 
-                  onChange={(e) => setInitDate(e.target.value)} 
+                  disabled
+                  style={{ opacity: 0.8, cursor: 'not-allowed' }}
                 />
               </div>
 

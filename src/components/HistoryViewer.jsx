@@ -10,9 +10,12 @@ import {
   TrendingUp, 
   TrendingDown, 
   Check, 
-  ArrowLeft 
+  ArrowLeft,
+  Trash2,
+  Lock
 } from 'lucide-react';
-import { getSubmittedShifts, getActiveShift } from '../firebase';
+import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift } from '../firebase';
+import PinNumpad from './PinNumpad';
 
 const HistoryViewer = ({ onBack }) => {
   const [shifts, setShifts] = useState([]);
@@ -20,6 +23,12 @@ const HistoryViewer = ({ onBack }) => {
   const [selectedShift, setSelectedShift] = useState(null);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  
+  // Manager authentication for deletion
+  const [showPinGate, setShowPinGate] = useState(false);
+  const [managers, setManagers] = useState([]);
+  const [selectedManagerId, setSelectedManagerId] = useState(null);
+  const [pinError, setPinError] = useState("");
 
   const fetchShifts = useCallback(async () => {
     setLoadingList(true);
@@ -53,12 +62,54 @@ const HistoryViewer = ({ onBack }) => {
   }, []);
 
   useEffect(() => {
+    setShowPinGate(false);
+    setSelectedManagerId(null);
+    setPinError("");
     if (selectedShiftId) {
       fetchShiftDetail(selectedShiftId);
     } else {
       setSelectedShift(null);
     }
   }, [selectedShiftId, fetchShiftDetail]);
+
+  const handleStartDeleteShift = async () => {
+    try {
+      const emps = await getEmployees();
+      setManagers(emps.filter(e => e.role === 'manager' && e.is_active));
+      setShowPinGate(true);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePinComplete = async (pin) => {
+    setPinError("");
+    if (!selectedManagerId) return;
+
+    try {
+      const isValid = await validateEmployeePin(selectedManagerId, pin);
+      if (isValid) {
+        if (window.confirm(`Are you sure you want to permanently delete the sealed shift submission for ${selectedShift.date} (${selectedShift.shift_type})? This action cannot be undone.`)) {
+          setLoadingDetail(true);
+          const success = await deleteShift(selectedShift.shift_id);
+          if (success) {
+            setShowPinGate(false);
+            setSelectedManagerId(null);
+            setSelectedShiftId(null);
+            setSelectedShift(null);
+            await fetchShifts();
+          } else {
+            setPinError("Failed to delete shift from database.");
+          }
+          setLoadingDetail(false);
+        }
+      } else {
+        setPinError("Invalid manager PIN code.");
+      }
+    } catch (err) {
+      setPinError("PIN verification error.");
+    }
+  };
 
   const formatTime = (isoString) => {
     if (!isoString) return "";
@@ -190,6 +241,61 @@ const HistoryViewer = ({ onBack }) => {
             <h3>No Shift Selected</h3>
             <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>Select a shift report from the left sidebar to view details.</p>
           </div>
+        ) : showPinGate ? (
+          <div className="glass-panel text-center p-8 animate-fade-in" style={{ maxWidth: '400px', margin: '40px auto', background: 'rgba(255,255,255,0.45)', width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-red)', padding: '12px', borderRadius: '50%' }}>
+                <Lock size={32} />
+              </div>
+            </div>
+
+            <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.3rem', color: 'var(--text-primary)', marginBottom: '8px' }}>
+              Manager Verification Required
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
+              Please enter a manager authorization PIN to delete the sealed shift submission.
+            </p>
+
+            {selectedManagerId === null ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {managers.length === 0 ? (
+                  <p style={{ color: 'var(--accent-red)', fontSize: '0.85rem', marginBottom: '16px' }}>
+                    No active managers checked-in.
+                  </p>
+                ) : (
+                  managers.map(mgr => (
+                    <button
+                      key={mgr.employee_id}
+                      type="button"
+                      className="btn btn-secondary w-full"
+                      style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}
+                      onClick={() => setSelectedManagerId(mgr.employee_id)}
+                    >
+                      <span>{mgr.employee_name}</span>
+                      <span className="badge badge-pending" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
+                        Manager
+                      </span>
+                    </button>
+                  ))
+                )}
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  style={{ marginTop: '16px' }}
+                  onClick={() => setShowPinGate(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <PinNumpad
+                title={`Enter PIN for ${managers.find(m => m.employee_id === selectedManagerId)?.employee_name}`}
+                onPinComplete={handlePinComplete}
+                onCancel={() => setSelectedManagerId(null)}
+                error={pinError}
+              />
+            )}
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', overflowY: 'auto', paddingRight: '4px' }}>
             
@@ -252,6 +358,30 @@ const HistoryViewer = ({ onBack }) => {
                     </span>
                   </div>
                 )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  style={{ 
+                    fontSize: '0.8rem', 
+                    padding: '8px 12px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    gap: '6px',
+                    width: '100%',
+                    backgroundColor: 'var(--accent-red)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px'
+                  }}
+                  onClick={handleStartDeleteShift}
+                >
+                  <Trash2 size={14} />
+                  <span>Delete Submission</span>
+                </button>
               </div>
             </div>
 

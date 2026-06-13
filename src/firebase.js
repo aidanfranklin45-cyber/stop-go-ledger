@@ -874,3 +874,24 @@ export async function getSubmittedShifts() {
   const list = Object.values(shifts).filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
   return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
 }
+
+export async function deleteShift(shiftId) {
+  if (isLiveMode()) {
+    try {
+      const shiftDocRef = doc(db, 'active_shifts', shiftId);
+      await deleteDoc(shiftDocRef);
+      return true;
+    } catch (e) {
+      console.error("Firestore deleteShift error:", e);
+      return false;
+    }
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  if (shifts[shiftId]) {
+    delete shifts[shiftId];
+    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return true;
+  }
+  return false;
+}

@@ -488,5 +488,21 @@ describe('Firebase Service Unit Tests', () => {
       expect(history[0].shift_id).toBe('shift_hist_02');
       expect(history[1].shift_id).toBe('shift_hist_01');
     });
+
+    it('should support deleting shifts', async () => {
+      const { startShift, submitShiftSignatures, getSubmittedShifts, deleteShift } = firebaseModule;
+
+      await startShift('shift_delete_test_id', 'opening', '2026-06-12', ['EMP_01']);
+      await submitShiftSignatures('shift_delete_test_id', [{ name: "Alice" }]);
+
+      const beforeDelete = await getSubmittedShifts();
+      expect(beforeDelete.find(s => s.shift_id === 'shift_delete_test_id')).toBeDefined();
+
+      const success = await deleteShift('shift_delete_test_id');
+      expect(success).toBe(true);
+
+      const afterDelete = await getSubmittedShifts();
+      expect(afterDelete.find(s => s.shift_id === 'shift_delete_test_id')).toBeUndefined();
+    });
   });
 });
