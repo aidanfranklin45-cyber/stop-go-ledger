@@ -5,10 +5,11 @@ const PinNumpad = ({ title = "Enter PIN", pinLength = 4, onPinComplete, onCancel
   const [pin, setPin] = useState("");
   const [prevError, setPrevError] = useState(error || "");
 
+  const normalizedError = error || "";
   // React pattern to adjust state on prop change during render
-  if (error !== prevError) {
+  if (normalizedError !== prevError) {
     setPin("");
-    setPrevError(error || "");
+    setPrevError(normalizedError);
   }
 
   const handleNumberPress = (num) => {
