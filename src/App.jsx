@@ -35,6 +35,7 @@ import VerificationScreen from './components/VerificationScreen';
 import DevControlPanel from './components/DevControlPanel';
 import HistoryViewer from './components/HistoryViewer';
 import ChoreManager from './components/ChoreManager';
+import StaffManager from './components/StaffManager';
 
 function App() {
   // --- UI & Panel states ---
@@ -420,6 +421,14 @@ function App() {
           >
             Manage Chores
           </button>
+          <button 
+            type="button"
+            className={`btn ${currentTab === 'staff_manager' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setCurrentTab('staff_manager')}
+            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+          >
+            Manage Staff
+          </button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -498,6 +507,8 @@ function App() {
         <HistoryViewer onBack={() => setCurrentTab('dashboard')} />
       ) : currentTab === 'chores_manager' ? (
         <ChoreManager onBack={() => setCurrentTab('dashboard')} />
+      ) : currentTab === 'staff_manager' ? (
+        <StaffManager onBack={() => setCurrentTab('dashboard')} />
       ) : appError && !selectedInitEmployee ? (
         <div className="glass-panel animate-fade-in" style={{ padding: '24px', textAlign: 'center', maxWidth: '500px', margin: '40px auto', borderLeft: '4px solid var(--accent-red)' }}>
           <h3 style={{ color: 'var(--accent-red)', marginBottom: '8px', fontSize: '1.2rem' }}>Operational Error</h3>

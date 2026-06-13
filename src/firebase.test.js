@@ -63,7 +63,7 @@ describe('Firebase Service Unit Tests', () => {
         role: emp.role,
         is_active: emp.is_active
       }));
-      globalThis.localStorage.setItem('stop_go_mock_employees', JSON.stringify(mockEmployees));
+      globalThis.localStorage.setItem('stop_go_mock_employees_v2', JSON.stringify(mockEmployees));
       globalThis.localStorage.setItem('stop_go_mock_shifts', JSON.stringify({}));
     });
 
@@ -358,7 +358,7 @@ describe('Firebase Service Unit Tests', () => {
         role: emp.role,
         is_active: emp.is_active
       }));
-      globalThis.localStorage.setItem('stop_go_mock_employees', JSON.stringify(mockEmployees));
+      globalThis.localStorage.setItem('stop_go_mock_employees_v2', JSON.stringify(mockEmployees));
       globalThis.localStorage.setItem('stop_go_mock_shifts', JSON.stringify({}));
     });
 
@@ -503,6 +503,93 @@ describe('Firebase Service Unit Tests', () => {
 
       const afterDelete = await getSubmittedShifts();
       expect(afterDelete.find(s => s.shift_id === 'shift_delete_test_id')).toBeUndefined();
+    });
+  });
+
+  describe('Employee CRUD Operations', () => {
+    beforeEach(async () => {
+      globalThis.localStorage.clear();
+      // Seed employees into the current database key
+      const { SEED_EMPLOYEES, hashPin } = firebaseModule;
+      const hashedEmployees = [];
+      for (const emp of SEED_EMPLOYEES) {
+        const pin_hash = await hashPin(emp.pin);
+        hashedEmployees.push({
+          employee_id: emp.id,
+          employee_name: emp.name,
+          pin_hash,
+          role: emp.role,
+          is_active: emp.is_active
+        });
+      }
+      globalThis.localStorage.setItem('stop_go_mock_employees_v2', JSON.stringify(hashedEmployees));
+    });
+
+    it('should retrieve seeded employees and validate their 6-digit PINs', async () => {
+      const { getEmployees, validateEmployeePin } = firebaseModule;
+      const emps = await getEmployees();
+      expect(emps.length).toBe(5);
+      
+      const emp1 = emps.find(e => e.employee_id === 'EMP_01');
+      expect(emp1).toBeDefined();
+      expect(emp1.employee_name).toBe('Alice Smith');
+      expect(emp1.role).toBe('manager');
+
+      // Validate correct PIN
+      const isValid = await validateEmployeePin('EMP_01', '111111');
+      expect(isValid).toBe(true);
+
+      // Validate incorrect PIN
+      const isInvalid = await validateEmployeePin('EMP_01', '123456');
+      expect(isInvalid).toBe(false);
+    });
+
+    it('should add a new employee and hash their 6-digit PIN', async () => {
+      const { getEmployees, addEmployee, validateEmployeePin } = firebaseModule;
+      
+      const newEmp = await addEmployee({
+        employee_name: 'Jordan Belfort',
+        role: 'operator',
+        pin: '654321'
+      });
+
+      expect(newEmp).toBeDefined();
+      expect(newEmp.employee_id).toBeDefined();
+      expect(newEmp.employee_name).toBe('Jordan Belfort');
+      expect(newEmp.role).toBe('operator');
+
+      const emps = await getEmployees();
+      expect(emps.length).toBe(6);
+      expect(emps.find(e => e.employee_name === 'Jordan Belfort')).toBeDefined();
+
+      const isValid = await validateEmployeePin(newEmp.employee_id, '654321');
+      expect(isValid).toBe(true);
+    });
+
+    it('should update an existing employee PIN code', async () => {
+      const { updateEmployeePin, validateEmployeePin } = firebaseModule;
+
+      const success = await updateEmployeePin('EMP_03', '999999');
+      expect(success).toBe(true);
+
+      // New PIN should work
+      const isNewValid = await validateEmployeePin('EMP_03', '999999');
+      expect(isNewValid).toBe(true);
+
+      // Old PIN should not work
+      const isOldValid = await validateEmployeePin('EMP_03', '333333');
+      expect(isOldValid).toBe(false);
+    });
+
+    it('should delete an employee by ID', async () => {
+      const { getEmployees, deleteEmployee } = firebaseModule;
+
+      const success = await deleteEmployee('EMP_05');
+      expect(success).toBe(true);
+
+      const emps = await getEmployees();
+      expect(emps.length).toBe(4);
+      expect(emps.find(e => e.employee_id === 'EMP_05')).toBeUndefined();
     });
   });
 });

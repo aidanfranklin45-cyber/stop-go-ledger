@@ -15,11 +15,11 @@ import {
 // 1. MASTER SEED DATA
 // ==============================================================================
 export const SEED_EMPLOYEES = [
-  { id: "EMP_01", name: "Alice Smith", pin: "1111", role: "manager", is_active: true },
-  { id: "EMP_02", name: "Bob Jones", pin: "2222", role: "manager", is_active: true },
-  { id: "EMP_03", name: "Charlie Brown", pin: "3333", role: "operator", is_active: true },
-  { id: "EMP_04", name: "David Miller", pin: "4444", role: "operator", is_active: true },
-  { id: "EMP_05", name: "Eva Davis", pin: "5555", role: "operator", is_active: true }
+  { id: "EMP_01", name: "Alice Smith", pin: "111111", role: "manager", is_active: true },
+  { id: "EMP_02", name: "Bob Jones", pin: "222222", role: "manager", is_active: true },
+  { id: "EMP_03", name: "Charlie Brown", pin: "333333", role: "operator", is_active: true },
+  { id: "EMP_04", name: "David Miller", pin: "444444", role: "operator", is_active: true },
+  { id: "EMP_05", name: "Eva Davis", pin: "555555", role: "operator", is_active: true }
 ];
 
 export const OPENING_TASKS = [
@@ -146,7 +146,7 @@ initializeFirebaseConnection();
 // ==============================================================================
 // 4. MOCK DATABASE (LOCAL STORAGE STATE MANAGER)
 // ==============================================================================
-const MOCK_KEY_EMPLOYEES = 'stop_go_mock_employees';
+const MOCK_KEY_EMPLOYEES = 'stop_go_mock_employees_v2';
 const MOCK_KEY_SHIFTS = 'stop_go_mock_shifts';
 
 async function initMockDatabase() {
@@ -891,6 +891,75 @@ export async function deleteShift(shiftId) {
   if (shifts[shiftId]) {
     delete shifts[shiftId];
     localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return true;
+  }
+  return false;
+}
+
+export async function addEmployee(emp) {
+  const newId = emp.employee_id || `EMP_${Date.now()}`;
+  const pin_hash = await hashPin(emp.pin);
+  const data = {
+    employee_id: newId,
+    employee_name: emp.employee_name,
+    pin_hash,
+    role: emp.role,
+    is_active: true
+  };
+
+  if (isLiveMode()) {
+    try {
+      const docRef = doc(db, 'employees', newId);
+      await setDoc(docRef, data);
+      return data;
+    } catch (e) {
+      console.error("Firestore addEmployee error:", e);
+    }
+  }
+
+  const list = await getEmployees();
+  list.push(data);
+  localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
+  return data;
+}
+
+export async function deleteEmployee(employeeId) {
+  if (isLiveMode()) {
+    try {
+      const docRef = doc(db, 'employees', employeeId);
+      await deleteDoc(docRef);
+      return true;
+    } catch (e) {
+      console.error("Firestore deleteEmployee error:", e);
+      return false;
+    }
+  }
+
+  const list = await getEmployees();
+  const filtered = list.filter(e => e.employee_id !== employeeId);
+  localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(filtered));
+  return true;
+}
+
+export async function updateEmployeePin(employeeId, newPin) {
+  const pin_hash = await hashPin(newPin);
+
+  if (isLiveMode()) {
+    try {
+      const docRef = doc(db, 'employees', employeeId);
+      await updateDoc(docRef, { pin_hash });
+      return true;
+    } catch (e) {
+      console.error("Firestore updateEmployeePin error:", e);
+      return false;
+    }
+  }
+
+  const list = await getEmployees();
+  const idx = list.findIndex(e => e.employee_id === employeeId);
+  if (idx !== -1) {
+    list[idx].pin_hash = pin_hash;
+    localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
     return true;
   }
   return false;

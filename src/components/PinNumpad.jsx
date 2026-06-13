@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Delete } from 'lucide-react';
 
-const PinNumpad = ({ title = "Enter PIN", pinLength = 4, onPinComplete, onCancel, error }) => {
+const PinNumpad = ({ title = "Enter PIN", pinLength = 6, onPinComplete, onCancel, error }) => {
   const [pin, setPin] = useState("");
 
   const [prevTitle, setPrevTitle] = useState(title);
