@@ -34,6 +34,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
   const [allEmployees, setAllEmployees] = useState([]);
   const [selectedEntryManagerId, setSelectedEntryManagerId] = useState(null);
   const [entryPinError, setEntryPinError] = useState("");
+  const [pinError, setPinError] = useState("");
 
   // Data states
   const [slowChoresList, setSlowChoresList] = useState([]);
@@ -63,25 +64,20 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
     }
   }, []);
 
-  // Load managers list on tab swap/auth check
-  const loadManagers = useCallback(async () => {
+  // Load all active employees on mount
+  const loadEmployees = useCallback(async () => {
     try {
       const emps = await getEmployees();
-      setAllEmployees(emps.filter(e => e.role === 'manager' && e.is_active));
+      setAllEmployees(emps.filter(e => e.is_active));
     } catch (err) {
-      console.error("Failed to load managers:", err);
+      console.error("Failed to load employees:", err);
     }
   }, []);
 
   useEffect(() => {
     loadSlowChores();
-  }, [loadSlowChores]);
-
-  useEffect(() => {
-    if (activeSubTab === 'scheduler') {
-      loadManagers();
-    }
-  }, [activeSubTab, loadManagers]);
+    loadEmployees();
+  }, [loadSlowChores, loadEmployees]);
 
   // Sync completer default when selectedOperatorId changes
   useEffect(() => {
@@ -89,6 +85,8 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
       setSelectedCompleterId(selectedOperatorId);
     } else if (activeTeam.length > 0) {
       setSelectedCompleterId(activeTeam[0].employee_id || activeTeam[0].id);
+    } else {
+      setSelectedCompleterId("");
     }
   }, [selectedOperatorId, activeTeam]);
 
@@ -201,33 +199,35 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
     }
   };
 
-  // Mark Completed
-  const handleMarkCompleted = async () => {
-    if (!completingChore) return;
-
-    if (!selectedCompleterId) {
-      alert("Please select the employee who completed this chore.");
-      return;
-    }
-
-    const employee = activeTeam.find(e => (e.employee_id || e.id) === selectedCompleterId);
-    if (!employee) return;
+  // PIN verification for chore completion
+  const handleChorePinComplete = async (pin) => {
+    setPinError("");
+    if (!completingChore || !selectedCompleterId) return;
 
     try {
-      const updated = await completeSlowChore(
-        completingChore.id,
-        employee.employee_id || employee.id,
-        employee.employee_name || employee.name
-      );
-      if (updated) {
-        setCompletingChore(null);
-        await loadSlowChores();
+      const isValid = await validateEmployeePin(selectedCompleterId, pin);
+      if (isValid) {
+        const employee = allEmployees.find(e => e.employee_id === selectedCompleterId);
+        if (employee) {
+          const updated = await completeSlowChore(
+            completingChore.id,
+            employee.employee_id,
+            employee.employee_name
+          );
+          if (updated) {
+            setCompletingChore(null);
+            setSelectedCompleterId("");
+            setPinError("");
+            await loadSlowChores();
+          } else {
+            setPinError("Failed to record chore completion.");
+          }
+        }
       } else {
-        alert("Failed to record chore completion.");
+        setPinError("Incorrect PIN code.");
       }
     } catch (err) {
-      console.error(err);
-      alert("Error marking completion.");
+      setPinError("PIN validation error.");
     }
   };
 
@@ -322,15 +322,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
       {!loading && activeSubTab === 'checklist' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
           
-          {/* Active Operator quick check */}
-          {activeTeam.length === 0 && (
-            <div className="glass-panel" style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.08)', borderColor: 'var(--accent-red)', display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <AlertTriangle size={20} style={{ color: 'var(--accent-red)' }} />
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 500 }}>
-                Roster Warning: No operators are currently checked in. Tap Dashboard, check in a team member, then return to complete chores.
-              </span>
-            </div>
-          )}
+
 
           {/* Section 1: Due Now */}
           <div className="glass-panel" style={{ padding: '24px' }}>
@@ -381,8 +373,11 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
 
                     <button
                       className="btn btn-success"
-                      disabled={activeTeam.length === 0}
-                      onClick={() => setCompletingChore(chore)}
+                      onClick={() => {
+                        setCompletingChore(chore);
+                        setSelectedCompleterId(selectedOperatorId || "");
+                        setPinError("");
+                      }}
                       style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
                       <Check size={14} />
@@ -452,12 +447,15 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
           background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', 
           justifyContent: 'center', zIndex: 1000, padding: '16px', backdropFilter: 'blur(4px)'
         }}>
-          <div className="glass-panel animate-fade-in" style={{ padding: '24px', maxWidth: '400px', width: '100%', background: '#ffffff' }}>
+          <div className="glass-panel animate-fade-in" style={{ padding: '24px', maxWidth: '400px', width: '100%', background: '#ffffff', color: 'var(--text-primary)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '10px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Record Chore Completion</h3>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Record Chore Completion</h3>
               <button 
                 type="button" 
-                onClick={() => setCompletingChore(null)}
+                onClick={() => {
+                  setCompletingChore(null);
+                  setSelectedCompleterId("");
+                }}
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
               >
                 <X size={18} />
@@ -468,40 +466,40 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
               Chore: <span style={{ color: 'var(--primary)' }}>{completingChore.name}</span>
             </p>
 
-            <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                Completed By
-              </label>
-              <select
-                className="form-input"
-                value={selectedCompleterId}
-                onChange={(e) => setSelectedCompleterId(e.target.value)}
-                style={{ padding: '10px', fontSize: '0.9rem', cursor: 'pointer', width: '100%' }}
-              >
-                <option value="" disabled>Select Operator</option>
-                {activeTeam.map(emp => (
-                  <option key={emp.employee_id || emp.id} value={emp.employee_id || emp.id}>
-                    {emp.employee_name || emp.name} ({emp.role})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                className="btn btn-secondary w-full"
-                onClick={() => setCompletingChore(null)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn btn-success w-full"
-                onClick={handleMarkCompleted}
-                disabled={!selectedCompleterId}
-              >
-                Confirm Complete
-              </button>
-            </div>
+            {selectedCompleterId === "" ? (
+              <div className="form-group" style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                  Completed By
+                </label>
+                <select
+                  className="form-input"
+                  value={selectedCompleterId}
+                  onChange={(e) => setSelectedCompleterId(e.target.value)}
+                  style={{ padding: '10px', fontSize: '0.9rem', cursor: 'pointer', width: '100%', marginBottom: '16px' }}
+                >
+                  <option value="">Select Employee</option>
+                  {allEmployees.map(emp => (
+                    <option key={emp.employee_id} value={emp.employee_id}>
+                      {emp.employee_name} ({emp.role})
+                    </option>
+                  ))}
+                </select>
+                
+                <button 
+                  className="btn btn-secondary w-full"
+                  onClick={() => setCompletingChore(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <PinNumpad
+                title={`Enter PIN for ${allEmployees.find(e => e.employee_id === selectedCompleterId)?.employee_name}`}
+                onPinComplete={handleChorePinComplete}
+                onCancel={() => setSelectedCompleterId("")}
+                error={pinError}
+              />
+            )}
           </div>
         </div>
       )}
@@ -526,12 +524,12 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
 
               {selectedEntryManagerId === null ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {allEmployees.length === 0 ? (
+                  {allEmployees.filter(e => e.role === 'manager').length === 0 ? (
                     <p style={{ color: 'var(--accent-red)', fontSize: '0.85rem', marginBottom: '16px' }}>
                       No active managers registered.
                     </p>
                   ) : (
-                    allEmployees.map(mgr => (
+                    allEmployees.filter(e => e.role === 'manager').map(mgr => (
                       <button
                         key={mgr.employee_id}
                         type="button"
