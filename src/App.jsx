@@ -544,7 +544,7 @@ function App() {
       ) : currentTab === 'staff_manager' ? (
         <StaffManager onBack={() => setCurrentTab('dashboard')} />
       ) : currentTab === 'analytics' ? (
-        <AnalyticsDashboard onBack={() => setCurrentTab('dashboard')} />
+        <AnalyticsDashboard onBack={() => setCurrentTab('dashboard')} currentShift={currentShift} />
       ) : currentTab === 'slow_chores' ? (
         <SlowChoresManager 
           onBack={() => setCurrentTab('dashboard')} 

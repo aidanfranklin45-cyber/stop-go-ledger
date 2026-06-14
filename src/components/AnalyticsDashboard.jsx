@@ -15,7 +15,7 @@ import {
 import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin } from '../firebase';
 import PinNumpad from './PinNumpad';
 
-const AnalyticsDashboard = ({ onBack }) => {
+const AnalyticsDashboard = ({ onBack, currentShift }) => {
   // Authentication states
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [allEmployees, setAllEmployees] = useState([]);
@@ -70,13 +70,24 @@ const AnalyticsDashboard = ({ onBack }) => {
           return fullShift || s; // fallback to summary if full shift fails
         })
       );
+
+      // Append active shift if it exists and is not already in the submitted list
+      if (currentShift && currentShift.shift_id) {
+        if (!detailedList.some(s => s.shift_id === currentShift.shift_id)) {
+          const fullActive = await getActiveShift(currentShift.shift_id);
+          if (fullActive) {
+            detailedList.push(fullActive);
+          }
+        }
+      }
+
       setShiftsDetail(detailedList);
     } catch (err) {
       console.error("Failed to fetch analytics data:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentShift]);
 
   useEffect(() => {
     if (isAuthenticated) {
