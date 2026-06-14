@@ -12,7 +12,8 @@ import {
   Lock,
   LogOut,
   TrendingUp,
-  ClipboardList
+  ClipboardList,
+  Calendar
 } from 'lucide-react';
 import {
   getEmployees,
@@ -611,7 +612,15 @@ function App() {
           </div>
         ) : (
           /* Render Manager views */
-          managerSubView === 'history' ? (
+          managerSubView === 'slow_chores_config' ? (
+            <SlowChoresManager 
+              onBack={() => setManagerSubView('menu')} 
+              activeTeam={activeTeamObjects} 
+              selectedOperatorId={selectedOperatorId} 
+              viewMode="scheduler"
+              defaultAuthenticated={true}
+            />
+          ) : managerSubView === 'history' ? (
             <HistoryViewer onBack={() => setManagerSubView('menu')} defaultAuthenticated={true} />
           ) : managerSubView === 'chores_manager' ? (
             <ChoreManager onBack={() => setManagerSubView('menu')} defaultAuthenticated={true} />
@@ -762,6 +771,34 @@ function App() {
                     Configure Staff
                   </button>
                 </div>
+
+                {/* Card 5: Configure Slow Chores */}
+                <div 
+                  className="member-item" 
+                  style={{ 
+                    flexDirection: 'column', 
+                    alignItems: 'flex-start', 
+                    padding: '24px', 
+                    background: 'rgba(255, 255, 255, 0.45)', 
+                    cursor: 'pointer',
+                    gap: '12px',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                  onClick={() => setManagerSubView('slow_chores_config')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--accent-green)' }}>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '10px', borderRadius: '12px', color: 'var(--accent-green)' }}>
+                      <Calendar size={24} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Configure Slow Chores</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    Schedule periodic chores, wipedowns, dumpster runs, and set their day-frequency intervals.
+                  </p>
+                  <button className="btn btn-secondary w-full" style={{ marginTop: '8px', pointerEvents: 'none' }}>
+                    Configure Slow Chores
+                  </button>
+                </div>
               </div>
             </div>
           )
@@ -771,6 +808,7 @@ function App() {
           onBack={() => setCurrentTab('dashboard')} 
           activeTeam={activeTeamObjects} 
           selectedOperatorId={selectedOperatorId} 
+          viewMode="checklist"
         />
       ) : appError && !selectedInitEmployee ? (
         <div className="glass-panel animate-fade-in" style={{ padding: '24px', textAlign: 'center', maxWidth: '500px', margin: '40px auto', borderLeft: '4px solid var(--accent-red)' }}>

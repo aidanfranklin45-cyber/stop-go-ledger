@@ -25,12 +25,12 @@ import {
 } from '../firebase';
 import PinNumpad from './PinNumpad';
 
-const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
+const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMode = 'checklist', defaultAuthenticated }) => {
   // Navigation tab: 'checklist' or 'scheduler'
-  const [activeSubTab, setActiveSubTab] = useState('checklist');
+  const [activeSubTab, setActiveSubTab] = useState(viewMode);
 
   // Authentication states for manager scheduler
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(defaultAuthenticated || false);
   const [allEmployees, setAllEmployees] = useState([]);
   const [selectedEntryManagerId, setSelectedEntryManagerId] = useState(null);
   const [entryPinError, setEntryPinError] = useState("");
@@ -266,33 +266,37 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
           </button>
           <div>
             <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)', margin: 0 }}>
-              Slow Chores Scheduler
+              {viewMode === 'scheduler' ? 'Configure Slow Chores' : 'Slow Chores Scheduler'}
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Periodic chores completed during slow store hours to keep procedures running smoothly.
+              {viewMode === 'scheduler' 
+                ? 'Add, edit, or delete scheduled slow chores and set their frequencies.' 
+                : 'Periodic chores completed during slow store hours to keep procedures running smoothly.'}
             </p>
           </div>
         </div>
 
         {/* Tab selection */}
-        <div className="nav-tabs" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.2)', padding: '4px', borderRadius: '8px' }}>
-          <button 
-            type="button"
-            className={`btn ${activeSubTab === 'checklist' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setActiveSubTab('checklist')}
-            style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-          >
-            Checklist
-          </button>
-          <button 
-            type="button"
-            className={`btn ${activeSubTab === 'scheduler' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setActiveSubTab('scheduler')}
-            style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-          >
-            Configure
-          </button>
-        </div>
+        {viewMode !== 'checklist' && viewMode !== 'scheduler' && (
+          <div className="nav-tabs" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.2)', padding: '4px', borderRadius: '8px' }}>
+            <button 
+              type="button"
+              className={`btn ${activeSubTab === 'checklist' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setActiveSubTab('checklist')}
+              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+            >
+              Checklist
+            </button>
+            <button 
+              type="button"
+              className={`btn ${activeSubTab === 'scheduler' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setActiveSubTab('scheduler')}
+              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+            >
+              Configure
+            </button>
+          </div>
+        )}
       </div>
 
       {loading && (
