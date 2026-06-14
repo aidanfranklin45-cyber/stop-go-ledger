@@ -86,6 +86,13 @@ const AnalyticsDashboard = ({ onBack }) => {
 
   // --- Calculations ---
 
+  // Date parsing utility to safely handle Firestore Timestamps and ISO strings
+  const parseTime = (val) => {
+    if (!val) return null;
+    if (typeof val.toDate === 'function') return val.toDate().getTime();
+    return new Date(val).getTime();
+  };
+
   // 1. Overall Completion Rate
   let totalCompleted = 0;
   let totalTasks = 0;
@@ -157,6 +164,92 @@ const AnalyticsDashboard = ({ onBack }) => {
   // 6. Shift Type Breakdown
   const openingShifts = shiftsDetail.filter(s => s.shift_type === 'opening');
   const closingShifts = shiftsDetail.filter(s => s.shift_type === 'closing');
+
+  // 7. Chore Completion Durations & Running Averages
+  const taskDurations = {}; // { [task_name]: [duration1, duration2, ...] }
+  shiftsDetail.forEach(s => {
+    const shiftInit = parseTime(s.initialized_at);
+    if (!shiftInit || !s.tasks) return;
+    Object.values(s.tasks).forEach(t => {
+      if (t.is_completed && t.timestamp) {
+        const taskDone = parseTime(t.timestamp);
+        if (taskDone && taskDone >= shiftInit) {
+          const durationMins = (taskDone - shiftInit) / (60 * 1000);
+          if (!taskDurations[t.task_name]) {
+            taskDurations[t.task_name] = [];
+          }
+          taskDurations[t.task_name].push(durationMins);
+        }
+      }
+    });
+  });
+
+  const taskAverages = {}; // { [task_name]: avg_mins }
+  Object.entries(taskDurations).forEach(([name, durations]) => {
+    const sum = durations.reduce((a, b) => a + b, 0);
+    taskAverages[name] = sum / durations.length;
+  });
+
+  // 8. Auditing Speedy Completions
+  const speedyAlerts = [];
+  shiftsDetail.forEach(s => {
+    const shiftInit = parseTime(s.initialized_at);
+    if (!shiftInit || !s.tasks) return;
+    Object.values(s.tasks).forEach(t => {
+      if (t.is_completed && t.timestamp && t.completed_by_name) {
+        const taskDone = parseTime(t.timestamp);
+        const avg = taskAverages[t.task_name];
+        if (taskDone && avg && avg >= 3) { // running average must be >= 3 minutes
+          const taken = (taskDone - shiftInit) / (60 * 1000);
+          // Flag if taken < 40% of average and the raw difference is at least 2 minutes
+          if (taken < (0.4 * avg) && (avg - taken) >= 2) {
+            speedyAlerts.push({
+              task_name: t.task_name,
+              completed_by_name: t.completed_by_name,
+              taken_mins: Math.round(taken * 10) / 10,
+              avg_mins: Math.round(avg * 10) / 10,
+              date: s.date,
+              shift_type: s.shift_type,
+              shift_id: s.shift_id
+            });
+          }
+        }
+      }
+    });
+  });
+  speedyAlerts.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // 9. Missing Shift Checklist Tracking (past 30 days excluding today)
+  const missingShifts = [];
+  const todayVal = new Date();
+  for (let i = 1; i <= 30; i++) {
+    const d = new Date(todayVal);
+    d.setDate(todayVal.getDate() - i);
+    
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+    
+    const hasOpening = shiftsDetail.some(s => s.date === dateString && s.shift_type === 'opening');
+    const hasClosing = shiftsDetail.some(s => s.date === dateString && s.shift_type === 'closing');
+    
+    if (!hasOpening || !hasClosing) {
+      let missingLabel = "";
+      if (!hasOpening && !hasClosing) {
+        missingLabel = "Both Opening & Closing";
+      } else if (!hasOpening) {
+        missingLabel = "Opening Shift";
+      } else {
+        missingLabel = "Closing Shift";
+      }
+      missingShifts.push({
+        date: dateString,
+        missing: missingLabel
+      });
+    }
+  }
+  missingShifts.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   // --- RENDERING AUTH GATE ---
   if (!isAuthenticated) {
@@ -428,6 +521,111 @@ const AnalyticsDashboard = ({ onBack }) => {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Speed Audit & Missing Reports Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+            
+            {/* Chore Speed Audits Card */}
+            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
+                <Clock size={20} style={{ color: 'var(--accent-amber)' }} />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Chore Speed Audits</h3>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Flags chores completed in less than 40% of their historical average time (minimum 3 mins average).
+              </p>
+              {speedyAlerts.length === 0 ? (
+                <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '120px' }}>
+                  <p style={{ color: 'var(--accent-green)', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>
+                    ✅ All completions align with expected durations.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '300px' }}>
+                  {speedyAlerts.map((alert, idx) => (
+                    <div 
+                      key={idx} 
+                      className="member-item animate-fade-in" 
+                      style={{ 
+                        background: 'rgba(239, 68, 68, 0.04)', 
+                        borderColor: 'rgba(239, 68, 68, 0.15)',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {alert.task_name}
+                        </span>
+                        <span className="badge badge-missed" style={{ fontSize: '0.65rem', background: 'var(--accent-red-glow)', color: 'var(--accent-red)' }}>
+                          Speed Warning
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        <span>Completed by: <strong>{alert.completed_by_name}</strong></span>
+                        <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>
+                          {alert.taken_mins}m <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(Avg: {alert.avg_mins}m)</span>
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {alert.date} ({alert.shift_type.toUpperCase()})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Missing Shift Checklists Card */}
+            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
+                <AlertTriangle size={20} style={{ color: 'var(--accent-red)' }} />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Missing Reports (Last 30 Days)</h3>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Identifies calendar days where opening or closing checklists were never initialized.
+              </p>
+              {missingShifts.length === 0 ? (
+                <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '120px' }}>
+                  <p style={{ color: 'var(--accent-green)', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>
+                    ✅ All expected checklists generated in the last 30 days.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '300px' }}>
+                  {missingShifts.map((m, idx) => (
+                    <div 
+                      key={idx} 
+                      className="member-item animate-fade-in" 
+                      style={{ 
+                        background: 'rgba(245, 158, 11, 0.04)', 
+                        borderColor: 'rgba(245, 158, 11, 0.15)',
+                        padding: '12px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <div>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
+                          {m.date}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          No reports generated
+                        </span>
+                      </div>
+                      <span className="badge badge-missed" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                        {m.missing}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
 
           {/* Till Discrepancy Log Card */}
