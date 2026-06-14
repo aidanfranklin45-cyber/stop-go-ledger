@@ -964,3 +964,140 @@ export async function updateEmployeePin(employeeId, newPin) {
   }
   return false;
 }
+
+export async function sendDiscordShiftStarted(shift, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    const color = 5814783; // Blue
+    const embed = {
+      title: `🚀 Shift Started: Stop & Go Chores`,
+      description: `A new shift has been initialized for **${shift.date}** (${shift.shift_type.toUpperCase()})`,
+      color: color,
+      fields: [
+        {
+          name: "👥 Active Team Roster",
+          value: shift.active_team_pids && shift.active_team_pids.length > 0
+            ? `Checked-in IDs: ${shift.active_team_pids.join(', ')}`
+            : "No active roster",
+          inline: false
+        }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: {
+        text: "Stop & Go Dynamic Chores App"
+      }
+    };
+    const payload = {
+      content: `🚀 Shift started for **${shift.date}** (${shift.shift_type})`,
+      embeds: [embed]
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Failed to send Discord shift started notification:", error);
+  }
+}
+
+export async function sendDiscordShiftArchived(shift, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    const color = 15158332; // Red
+    const completedPercent = shift.total_tasks > 0 
+      ? Math.round((shift.completed_tasks / shift.total_tasks) * 100) 
+      : 0;
+    const embed = {
+      title: `⚠️ Shift Auto-Archived: Stop & Go Chores`,
+      description: `Shift for **${shift.date}** (${shift.shift_type.toUpperCase()}) was left open and has been auto-archived.`,
+      color: color,
+      fields: [
+        {
+          name: "📋 Chore Completion",
+          value: `**${shift.completed_tasks} / ${shift.total_tasks}** completed (${completedPercent}%)`,
+          inline: true
+        },
+        {
+          name: "🚨 Missed Chores",
+          value: `**${shift.missed_tasks_count}** chores were left incomplete`,
+          inline: true
+        },
+        {
+          name: "👥 Roster",
+          value: shift.active_team && shift.active_team.length > 0 
+            ? `IDs: ${shift.active_team.join(', ')}`
+            : "No active roster",
+          inline: false
+        }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: {
+        text: "Stop & Go Dynamic Chores App"
+      }
+    };
+    const payload = {
+      content: `⚠️ Shift auto-archived for **${shift.date}** (${shift.shift_type})`,
+      embeds: [embed]
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Failed to send Discord shift archived notification:", error);
+  }
+}
+
+export async function sendDiscordShiftDeleted(shiftDate, shiftType, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    const color = 15105570; // Amber
+    const embed = {
+      title: `🗑️ Shift Deleted: Stop & Go Chores`,
+      description: `Shift checklist for **${shiftDate}** (${shiftType.toUpperCase()}) was deleted by a manager.`,
+      color: color,
+      timestamp: new Date().toISOString(),
+      footer: {
+        text: "Stop & Go Dynamic Chores App"
+      }
+    };
+    const payload = {
+      content: `🗑️ Shift deleted for **${shiftDate}** (${shiftType})`,
+      embeds: [embed]
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Failed to send Discord shift deleted notification:", error);
+  }
+}
+
+export async function updateShiftNotes(shiftId, notes) {
+  if (isLiveMode()) {
+    try {
+      const shiftDocRef = doc(db, 'active_shifts', shiftId);
+      await updateDoc(shiftDocRef, {
+        notes: notes
+      });
+      return await getActiveShift(shiftId);
+    } catch (e) {
+      console.error("Firestore updateShiftNotes error:", e);
+    }
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  const shift = shifts[shiftId];
+  if (shift) {
+    shift.notes = notes;
+    shifts[shiftId] = shift;
+    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return shift;
+  }
+  return null;
+}
+

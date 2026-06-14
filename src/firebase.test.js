@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 
 // 1. Mock LocalStorage before importing firebase
 class LocalStorageMock {
@@ -590,6 +590,110 @@ describe('Firebase Service Unit Tests', () => {
       const emps = await getEmployees();
       expect(emps.length).toBe(4);
       expect(emps.find(e => e.employee_id === 'EMP_05')).toBeUndefined();
+    });
+  });
+
+  describe('Phase 4: Discord Webhook and Shift Notes', () => {
+    let originalFetch;
+
+    beforeAll(() => {
+      originalFetch = globalThis.fetch;
+    });
+
+    afterAll(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    beforeEach(() => {
+      globalThis.localStorage.clear();
+    });
+
+    it('should write and update shift notes successfully', async () => {
+      const { startShift, updateShiftNotes, getActiveShift } = firebaseModule;
+      const shiftId = 'notes_test_shift';
+      await startShift(shiftId, 'opening', '2026-06-14', ['EMP_01']);
+
+      const updated = await updateShiftNotes(shiftId, 'This is a test note');
+      expect(updated).toBeDefined();
+      expect(updated.notes).toBe('This is a test note');
+
+      const retrieved = await getActiveShift(shiftId);
+      expect(retrieved.notes).toBe('This is a test note');
+    });
+
+    it('should invoke sendDiscordShiftStarted and make POST fetch request', async () => {
+      const { sendDiscordShiftStarted } = firebaseModule;
+      let calledUrl = null;
+      let calledOptions = null;
+
+      globalThis.fetch = async (url, options) => {
+        calledUrl = url;
+        calledOptions = options;
+        return { ok: true };
+      };
+
+      const mockShift = {
+        date: '2026-06-14',
+        shift_type: 'opening',
+        active_team_pids: ['EMP_01', 'EMP_02']
+      };
+
+      await sendDiscordShiftStarted(mockShift, 'https://discord.com/api/webhooks/test');
+
+      expect(calledUrl).toBe('https://discord.com/api/webhooks/test');
+      expect(calledOptions.method).toBe('POST');
+      const payload = JSON.parse(calledOptions.body);
+      expect(payload.content).toContain('Shift started');
+      expect(payload.embeds[0].title).toContain('Shift Started');
+    });
+
+    it('should invoke sendDiscordShiftArchived and make POST fetch request', async () => {
+      const { sendDiscordShiftArchived } = firebaseModule;
+      let calledUrl = null;
+      let calledOptions = null;
+
+      globalThis.fetch = async (url, options) => {
+        calledUrl = url;
+        calledOptions = options;
+        return { ok: true };
+      };
+
+      const mockPayload = {
+        date: '2026-06-14',
+        shift_type: 'closing',
+        completed_tasks: 10,
+        total_tasks: 12,
+        missed_tasks_count: 2,
+        active_team: ['EMP_01']
+      };
+
+      await sendDiscordShiftArchived(mockPayload, 'https://discord.com/api/webhooks/test');
+
+      expect(calledUrl).toBe('https://discord.com/api/webhooks/test');
+      expect(calledOptions.method).toBe('POST');
+      const payload = JSON.parse(calledOptions.body);
+      expect(payload.content).toContain('Shift auto-archived');
+      expect(payload.embeds[0].title).toContain('Shift Auto-Archived');
+    });
+
+    it('should invoke sendDiscordShiftDeleted and make POST fetch request', async () => {
+      const { sendDiscordShiftDeleted } = firebaseModule;
+      let calledUrl = null;
+      let calledOptions = null;
+
+      globalThis.fetch = async (url, options) => {
+        calledUrl = url;
+        calledOptions = options;
+        return { ok: true };
+      };
+
+      await sendDiscordShiftDeleted('2026-06-14', 'closing', 'https://discord.com/api/webhooks/test');
+
+      expect(calledUrl).toBe('https://discord.com/api/webhooks/test');
+      expect(calledOptions.method).toBe('POST');
+      const payload = JSON.parse(calledOptions.body);
+      expect(payload.content).toContain('Shift deleted');
+      expect(payload.embeds[0].title).toContain('Shift Deleted');
     });
   });
 });

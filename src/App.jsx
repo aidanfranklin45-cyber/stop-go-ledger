@@ -25,7 +25,9 @@ import {
   saveFirebaseConfig,
   updateShiftRoster,
   updateShiftStatus,
-  seedTestScenario
+  seedTestScenario,
+  sendDiscordShiftStarted,
+  sendDiscordShiftArchived
 } from './firebase';
 
 import PinNumpad from './components/PinNumpad';
@@ -36,6 +38,7 @@ import DevControlPanel from './components/DevControlPanel';
 import HistoryViewer from './components/HistoryViewer';
 import ChoreManager from './components/ChoreManager';
 import StaffManager from './components/StaffManager';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 function App() {
   // --- UI & Panel states ---
@@ -223,6 +226,12 @@ function App() {
         localStorage.setItem('stop_go_selected_operator_id', firstId);
       }
       setAppError(null);
+
+      // Webhook notification for shift start
+      const webhookUrl = localStorage.getItem('stop_go_discord_webhook_url');
+      if (webhookUrl) {
+        await sendDiscordShiftStarted(shift, webhookUrl);
+      }
     } catch (err) {
       console.error(err);
       setAppError("Could not initialize shift session.");
@@ -329,6 +338,14 @@ function App() {
     try {
       const analytics = await simulateDailyCleanup();
       
+      // Send Discord notification for each archived shift
+      const webhookUrl = localStorage.getItem('stop_go_discord_webhook_url');
+      if (webhookUrl && analytics && analytics.length > 0) {
+        for (const payload of analytics) {
+          await sendDiscordShiftArchived(payload, webhookUrl);
+        }
+      }
+
       // If our current shift was swept by cron, refresh state
       if (currentShift) {
         const refreshed = await getActiveShift(currentShift.shift_id);
@@ -412,6 +429,14 @@ function App() {
             style={{ padding: '8px 16px', fontSize: '0.85rem' }}
           >
             Shift History
+          </button>
+          <button 
+            type="button"
+            className={`btn ${currentTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setCurrentTab('analytics')}
+            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+          >
+            Analytics
           </button>
           <button 
             type="button"
@@ -509,6 +534,8 @@ function App() {
         <ChoreManager onBack={() => setCurrentTab('dashboard')} />
       ) : currentTab === 'staff_manager' ? (
         <StaffManager onBack={() => setCurrentTab('dashboard')} />
+      ) : currentTab === 'analytics' ? (
+        <AnalyticsDashboard onBack={() => setCurrentTab('dashboard')} />
       ) : appError && !selectedInitEmployee ? (
         <div className="glass-panel animate-fade-in" style={{ padding: '24px', textAlign: 'center', maxWidth: '500px', margin: '40px auto', borderLeft: '4px solid var(--accent-red)' }}>
           <h3 style={{ color: 'var(--accent-red)', marginBottom: '8px', fontSize: '1.2rem' }}>Operational Error</h3>

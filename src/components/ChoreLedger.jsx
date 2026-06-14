@@ -1,4 +1,5 @@
 
+import { useState, useEffect } from 'react';
 import { 
   Wrench, 
   Sparkles, 
@@ -14,6 +15,7 @@ import {
   Check, 
   AlertTriangle 
 } from 'lucide-react';
+import { updateShiftNotes } from '../firebase';
 
 const CATEGORIES = [
   "Equipment", 
@@ -35,6 +37,27 @@ const ChoreLedger = ({
   selectedOperatorId,
   setSelectedOperatorId
 }) => {
+  const [notes, setNotes] = useState(shift?.notes || "");
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
+
+  // Sync state if shift prop changes (e.g. initial load or reset)
+  useEffect(() => {
+    setNotes(shift?.notes || "");
+  }, [shift?.notes]);
+
+  // Debounced auto-save effect
+  useEffect(() => {
+    if (!shift || notes === (shift.notes || "")) return;
+    const timer = setTimeout(async () => {
+      try {
+        await updateShiftNotes(shift.shift_id, notes);
+      } catch (err) {
+        console.error("Failed to auto-save shift notes:", err);
+      }
+    }, 1000); // 1-second debounce
+
+    return () => clearTimeout(timer);
+  }, [notes, shift]);
 
   const formatTime = (isoString) => {
     if (!isoString) return "";
@@ -233,6 +256,62 @@ const ChoreLedger = ({
             </div>
           );
         })
+      )}
+
+      {/* Shift Notes Collapsible Panel */}
+      {shift && (
+        <div className="glass-panel" style={{ marginTop: '20px', background: 'rgba(255,255,255,0.45)', padding: '16px' }}>
+          <button
+            type="button"
+            onClick={() => setIsNotesOpen(!isNotesOpen)}
+            className="btn btn-secondary"
+            style={{ 
+              width: '100%', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: '10px 16px',
+              fontSize: '0.9rem',
+              fontWeight: 600
+            }}
+          >
+            <span>📝 Shift Notes</span>
+            <span>{isNotesOpen ? '▲' : '▼'}</span>
+          </button>
+
+          {isNotesOpen && (
+            <div style={{ marginTop: '12px' }} className="animate-fade-in">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder={
+                  shift.status === 'submitted' || shift.status === 'missed_cleanup'
+                    ? "No notes recorded for this shift."
+                    : "Add any shift notes, exceptions, or general hand-off updates here (autosaves)..."
+                }
+                disabled={shift.status === 'submitted' || shift.status === 'missed_cleanup'}
+                style={{
+                  width: '100%',
+                  minHeight: '100px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--glass-border)',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'var(--text-primary)',
+                  fontFamily: 'inherit',
+                  fontSize: '0.9rem',
+                  resize: 'vertical',
+                  outline: 'none'
+                }}
+              />
+              {shift.status !== 'submitted' && shift.status !== 'missed_cleanup' && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', textAlign: 'right' }}>
+                  Autosaving...
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

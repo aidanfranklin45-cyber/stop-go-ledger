@@ -14,7 +14,7 @@ import {
   Trash2,
   Lock
 } from 'lucide-react';
-import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift } from '../firebase';
+import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift, sendDiscordShiftDeleted } from '../firebase';
 import PinNumpad from './PinNumpad';
 
 const HistoryViewer = ({ onBack }) => {
@@ -112,8 +112,14 @@ const HistoryViewer = ({ onBack }) => {
       if (isValid) {
         if (window.confirm(`Are you sure you want to permanently delete the sealed shift submission for ${selectedShift.date} (${selectedShift.shift_type})? This action cannot be undone.`)) {
           setLoadingDetail(true);
+          const shiftDate = selectedShift.date;
+          const shiftType = selectedShift.shift_type;
           const success = await deleteShift(selectedShift.shift_id);
           if (success) {
+            const webhookUrl = localStorage.getItem('stop_go_discord_webhook_url');
+            if (webhookUrl) {
+              await sendDiscordShiftDeleted(shiftDate, shiftType, webhookUrl);
+            }
             setShowPinGate(false);
             setSelectedManagerId(null);
             setSelectedShiftId(null);
@@ -524,6 +530,18 @@ const HistoryViewer = ({ onBack }) => {
                 </div>
               </div>
             </div>
+
+            {/* Shift Notes callout */}
+            {selectedShift.notes && (
+              <div className="glass-panel animate-fade-in" style={{ padding: '16px', background: 'rgba(255,255,255,0.45)', borderLeft: '4px solid var(--primary)', marginTop: '8px', marginBottom: '8px' }}>
+                <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  📝 Shift Notes
+                </h4>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', margin: 0 }}>
+                  {selectedShift.notes}
+                </p>
+              </div>
+            )}
 
             {/* Chores Grid Breakdowns */}
             <div>
