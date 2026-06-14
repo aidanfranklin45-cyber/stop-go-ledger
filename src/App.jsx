@@ -39,6 +39,7 @@ import HistoryViewer from './components/HistoryViewer';
 import ChoreManager from './components/ChoreManager';
 import StaffManager from './components/StaffManager';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import SlowChoresManager from './components/SlowChoresManager';
 
 function App() {
   // --- UI & Panel states ---
@@ -440,6 +441,14 @@ function App() {
           </button>
           <button 
             type="button"
+            className={`btn ${currentTab === 'slow_chores' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setCurrentTab('slow_chores')}
+            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+          >
+            Slow Chores
+          </button>
+          <button 
+            type="button"
             className={`btn ${currentTab === 'chores_manager' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setCurrentTab('chores_manager')}
             style={{ padding: '8px 16px', fontSize: '0.85rem' }}
@@ -536,6 +545,12 @@ function App() {
         <StaffManager onBack={() => setCurrentTab('dashboard')} />
       ) : currentTab === 'analytics' ? (
         <AnalyticsDashboard onBack={() => setCurrentTab('dashboard')} />
+      ) : currentTab === 'slow_chores' ? (
+        <SlowChoresManager 
+          onBack={() => setCurrentTab('dashboard')} 
+          activeTeam={activeTeamObjects} 
+          selectedOperatorId={selectedOperatorId} 
+        />
       ) : appError && !selectedInitEmployee ? (
         <div className="glass-panel animate-fade-in" style={{ padding: '24px', textAlign: 'center', maxWidth: '500px', margin: '40px auto', borderLeft: '4px solid var(--accent-red)' }}>
           <h3 style={{ color: 'var(--accent-red)', marginBottom: '8px', fontSize: '1.2rem' }}>Operational Error</h3>

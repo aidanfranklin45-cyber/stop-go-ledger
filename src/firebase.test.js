@@ -696,4 +696,71 @@ describe('Firebase Service Unit Tests', () => {
       expect(payload.embeds[0].title).toContain('Shift Deleted');
     });
   });
+
+  describe('Phase 4 Extension: Slow Chores Scheduler', () => {
+    beforeEach(() => {
+      globalThis.localStorage.clear();
+    });
+
+    it('should retrieve seeded slow chores by default', async () => {
+      const { getSlowChores } = firebaseModule;
+      const chores = await getSlowChores();
+      expect(chores).toBeDefined();
+      expect(chores.length).toBe(4);
+      expect(chores[0].name).toContain('Clean Bathroom');
+      expect(chores[0].frequency_days).toBe(3);
+      expect(chores[0].last_completed_at).toBeNull();
+    });
+
+    it('should support CRUD operations for slow chores', async () => {
+      const { addSlowChore, getSlowChores, updateSlowChore, deleteSlowChore } = firebaseModule;
+
+      // 1. Add
+      const newChore = await addSlowChore({
+        name: 'Clean Sidewalk Windows',
+        frequency_days: 4
+      });
+      expect(newChore).toBeDefined();
+      expect(newChore.id).toBeDefined();
+      expect(newChore.name).toBe('Clean Sidewalk Windows');
+      expect(newChore.frequency_days).toBe(4);
+
+      let list = await getSlowChores();
+      expect(list.length).toBe(5);
+      expect(list.find(c => c.name === 'Clean Sidewalk Windows')).toBeDefined();
+
+      // 2. Update
+      const updated = await updateSlowChore(newChore.id, {
+        name: 'Clean Sidewalk Windows (Deep)',
+        frequency_days: 6
+      });
+      expect(updated).toBeDefined();
+      expect(updated.name).toBe('Clean Sidewalk Windows (Deep)');
+      expect(updated.frequency_days).toBe(6);
+
+      // 3. Delete
+      const success = await deleteSlowChore(newChore.id);
+      expect(success).toBe(true);
+      list = await getSlowChores();
+      expect(list.length).toBe(4);
+      expect(list.find(c => c.id === newChore.id)).toBeUndefined();
+    });
+
+    it('should complete a slow chore and reset its last_completed_at timestamp', async () => {
+      const { getSlowChores, completeSlowChore } = firebaseModule;
+      const chores = await getSlowChores();
+      const targetChore = chores[0];
+
+      expect(targetChore.last_completed_at).toBeNull();
+
+      const completed = await completeSlowChore(targetChore.id, 'EMP_01', 'Alice Smith');
+      expect(completed).toBeDefined();
+      expect(completed.last_completed_at).not.toBeNull();
+      expect(completed.last_completed_by_id).toBe('EMP_01');
+      expect(completed.last_completed_by_name).toBe('Alice Smith');
+
+      const refreshed = (await getSlowChores()).find(c => c.id === targetChore.id);
+      expect(refreshed.last_completed_at).toBe(completed.last_completed_at);
+    });
+  });
 });

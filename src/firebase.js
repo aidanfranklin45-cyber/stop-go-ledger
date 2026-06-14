@@ -1101,3 +1101,148 @@ export async function updateShiftNotes(shiftId, notes) {
   return null;
 }
 
+const DEFAULT_SLOW_CHORES = [
+  { id: 'SC_01', name: 'Clean Bathroom & Restock Supplies', frequency_days: 3, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
+  { id: 'SC_02', name: 'Check Parking Lot for Trash & Garbage', frequency_days: 2, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
+  { id: 'SC_03', name: 'Pull Weeds Outside Front Entrance', frequency_days: 7, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
+  { id: 'SC_04', name: 'Deep Clean Back Shelving & Racks', frequency_days: 5, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null }
+];
+
+const MOCK_KEY_SLOW_CHORES = 'stop_go_mock_slow_chores';
+
+export async function getSlowChores() {
+  if (isLiveMode()) {
+    try {
+      const snap = await getDocs(collection(db, 'slow_chores'));
+      const list = [];
+      snap.forEach(doc => {
+        list.push(doc.data());
+      });
+      if (list.length === 0) {
+        for (const sc of DEFAULT_SLOW_CHORES) {
+          await setDoc(doc(db, 'slow_chores', sc.id), sc);
+        }
+        return DEFAULT_SLOW_CHORES;
+      }
+      return list;
+    } catch (e) {
+      console.error("Firestore getSlowChores error, falling back to mock:", e);
+    }
+  }
+
+  let stored = localStorage.getItem(MOCK_KEY_SLOW_CHORES);
+  if (!stored) {
+    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(DEFAULT_SLOW_CHORES));
+    return DEFAULT_SLOW_CHORES;
+  }
+  return JSON.parse(stored);
+}
+
+export async function addSlowChore(chore) {
+  const newId = `SC_${Date.now()}`;
+  const data = {
+    id: newId,
+    name: chore.name,
+    frequency_days: Number(chore.frequency_days),
+    last_completed_at: null,
+    last_completed_by_id: null,
+    last_completed_by_name: null
+  };
+
+  if (isLiveMode()) {
+    try {
+      await setDoc(doc(db, 'slow_chores', newId), data);
+      return data;
+    } catch (e) {
+      console.error("Firestore addSlowChore error:", e);
+    }
+  }
+
+  const list = await getSlowChores();
+  list.push(data);
+  localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
+  return data;
+}
+
+export async function updateSlowChore(id, chore) {
+  if (isLiveMode()) {
+    try {
+      const docRef = doc(db, 'slow_chores', id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const existing = docSnap.data();
+        const updated = {
+          ...existing,
+          name: chore.name,
+          frequency_days: Number(chore.frequency_days)
+        };
+        await setDoc(docRef, updated);
+        return updated;
+      }
+    } catch (e) {
+      console.error("Firestore updateSlowChore error:", e);
+    }
+  }
+
+  const list = await getSlowChores();
+  const idx = list.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    list[idx].name = chore.name;
+    list[idx].frequency_days = Number(chore.frequency_days);
+    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
+    return list[idx];
+  }
+  return null;
+}
+
+export async function deleteSlowChore(id) {
+  if (isLiveMode()) {
+    try {
+      await deleteDoc(doc(db, 'slow_chores', id));
+      return true;
+    } catch (e) {
+      console.error("Firestore deleteSlowChore error:", e);
+      return false;
+    }
+  }
+
+  const list = await getSlowChores();
+  const filtered = list.filter(c => c.id !== id);
+  localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(filtered));
+  return true;
+}
+
+export async function completeSlowChore(id, employeeId, employeeName) {
+  const nowStr = new Date().toISOString();
+  if (isLiveMode()) {
+    try {
+      const docRef = doc(db, 'slow_chores', id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const existing = docSnap.data();
+        const updated = {
+          ...existing,
+          last_completed_at: nowStr,
+          last_completed_by_id: employeeId,
+          last_completed_by_name: employeeName
+        };
+        await setDoc(docRef, updated);
+        return updated;
+      }
+    } catch (e) {
+      console.error("Firestore completeSlowChore error:", e);
+    }
+  }
+
+  const list = await getSlowChores();
+  const idx = list.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    list[idx].last_completed_at = nowStr;
+    list[idx].last_completed_by_id = employeeId;
+    list[idx].last_completed_by_name = employeeName;
+    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
+    return list[idx];
+  }
+  return null;
+}
+
