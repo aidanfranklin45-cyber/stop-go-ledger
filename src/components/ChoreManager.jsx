@@ -32,9 +32,9 @@ const CATEGORIES = [
   "Inventory"
 ];
 
-const ChoreManager = ({ onBack }) => {
+const ChoreManager = ({ onBack, defaultAuthenticated }) => {
   // Authentication states
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(defaultAuthenticated || false);
   const [allEmployees, setAllEmployees] = useState([]);
   const [selectedManagerId, setSelectedManagerId] = useState(null);
   const [pinError, setPinError] = useState("");

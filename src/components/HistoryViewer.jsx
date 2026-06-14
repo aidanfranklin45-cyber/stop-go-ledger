@@ -17,7 +17,7 @@ import {
 import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift, sendDiscordShiftDeleted } from '../firebase';
 import PinNumpad from './PinNumpad';
 
-const HistoryViewer = ({ onBack }) => {
+const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
   const [shifts, setShifts] = useState([]);
   const [selectedShiftId, setSelectedShiftId] = useState(null);
   const [selectedShift, setSelectedShift] = useState(null);
@@ -25,7 +25,7 @@ const HistoryViewer = ({ onBack }) => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   
   // Manager authentication for entry
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(defaultAuthenticated || false);
   const [allEmployees, setAllEmployees] = useState([]);
   const [selectedEntryManagerId, setSelectedEntryManagerId] = useState(null);
   const [entryPinError, setEntryPinError] = useState("");

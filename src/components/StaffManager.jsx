@@ -13,9 +13,9 @@ import {
 import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin } from '../firebase';
 import PinNumpad from './PinNumpad';
 
-const StaffManager = ({ onBack }) => {
+const StaffManager = ({ onBack, defaultAuthenticated }) => {
   // Authentication states
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(defaultAuthenticated || false);
   const [allEmployees, setAllEmployees] = useState([]);
   const [selectedManagerId, setSelectedManagerId] = useState(null);
   const [pinError, setPinError] = useState("");

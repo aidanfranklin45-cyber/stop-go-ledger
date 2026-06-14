@@ -15,9 +15,9 @@ import {
 import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin } from '../firebase';
 import PinNumpad from './PinNumpad';
 
-const AnalyticsDashboard = ({ onBack, currentShift }) => {
+const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
   // Authentication states
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(defaultAuthenticated || false);
   const [allEmployees, setAllEmployees] = useState([]);
   const [selectedEntryManagerId, setSelectedEntryManagerId] = useState(null);
   const [entryPinError, setEntryPinError] = useState("");

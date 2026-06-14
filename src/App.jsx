@@ -8,7 +8,11 @@ import {
   RotateCcw,
   ShieldCheck,
   Server,
-  AlertTriangle
+  AlertTriangle,
+  Lock,
+  LogOut,
+  TrendingUp,
+  ClipboardList
 } from 'lucide-react';
 import {
   getEmployees,
@@ -57,6 +61,13 @@ function App() {
   const [selectedOperatorId, setSelectedOperatorId] = useState(() => {
     return localStorage.getItem('stop_go_selected_operator_id') || null;
   });
+
+
+  // --- Manager Access Tab states ---
+  const [isManagerAuthenticated, setIsManagerAuthenticated] = useState(false);
+  const [managerSubView, setManagerSubView] = useState('menu'); // 'menu', 'history', 'analytics', 'chores_manager', 'staff_manager'
+  const [selectedManagerIdForAccess, setSelectedManagerIdForAccess] = useState(null);
+  const [managerAccessPinError, setManagerAccessPinError] = useState("");
 
   // --- State 01: Setup Roster state ---
   const [initTeamPids, setInitTeamPids] = useState([]);
@@ -241,6 +252,23 @@ function App() {
     }
   };
 
+  const handleManagerAccessPinComplete = async (pin) => {
+    setManagerAccessPinError("");
+    if (!selectedManagerIdForAccess) return;
+
+    try {
+      const isValid = await validateEmployeePin(selectedManagerIdForAccess, pin);
+      if (isValid) {
+        setIsManagerAuthenticated(true);
+        setSelectedManagerIdForAccess(null);
+      } else {
+        setManagerAccessPinError("Invalid manager PIN code.");
+      }
+    } catch (err) {
+      setManagerAccessPinError("PIN verification error.");
+    }
+  };
+
   // --- State 02 Operations ---
   const handleTaskToggle = async (taskId, isCompleted, employeeId = null, employeeName = null) => {
     if (!currentShift) return;
@@ -408,9 +436,17 @@ function App() {
     <div className="app-container">
       {/* Header bar */}
       <header className="header glass-panel animate-fade-in">
-        <div className="logo-section">
-          <h1>Stop & Go</h1>
-          <p>Dynamic Chores List</p>
+        <div className="logo-section" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <img 
+            src="/logo.png" 
+            alt="Stop & Go Logo" 
+            style={{ width: '40px', height: '40px', objectFit: 'contain' }} 
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+          <div>
+            <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, lineHeight: 1.2 }}>Stop & Go</h1>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Dynamic Chores List</p>
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -425,22 +461,6 @@ function App() {
           </button>
           <button 
             type="button"
-            className={`btn ${currentTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setCurrentTab('history')}
-            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-          >
-            Shift History
-          </button>
-          <button 
-            type="button"
-            className={`btn ${currentTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setCurrentTab('analytics')}
-            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-          >
-            Analytics
-          </button>
-          <button 
-            type="button"
             className={`btn ${currentTab === 'slow_chores' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setCurrentTab('slow_chores')}
             style={{ padding: '8px 16px', fontSize: '0.85rem' }}
@@ -449,19 +469,14 @@ function App() {
           </button>
           <button 
             type="button"
-            className={`btn ${currentTab === 'chores_manager' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setCurrentTab('chores_manager')}
+            className={`btn ${currentTab === 'manager_access' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => {
+              setCurrentTab('manager_access');
+              setManagerSubView('menu');
+            }}
             style={{ padding: '8px 16px', fontSize: '0.85rem' }}
           >
-            Manage Chores
-          </button>
-          <button 
-            type="button"
-            className={`btn ${currentTab === 'staff_manager' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setCurrentTab('staff_manager')}
-            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-          >
-            Manage Staff
+            Manager Access
           </button>
         </div>
 
@@ -537,14 +552,219 @@ function App() {
           <p style={{ color: 'var(--text-secondary)' }}>Synchronizing Ledger State...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
-      ) : currentTab === 'history' ? (
-        <HistoryViewer onBack={() => setCurrentTab('dashboard')} />
-      ) : currentTab === 'chores_manager' ? (
-        <ChoreManager onBack={() => setCurrentTab('dashboard')} />
-      ) : currentTab === 'staff_manager' ? (
-        <StaffManager onBack={() => setCurrentTab('dashboard')} />
-      ) : currentTab === 'analytics' ? (
-        <AnalyticsDashboard onBack={() => setCurrentTab('dashboard')} currentShift={currentShift} />
+      ) : currentTab === 'manager_access' ? (
+        !isManagerAuthenticated ? (
+          <div className="glass-panel max-w-md mx-auto w-full text-center p-8 animate-fade-in" style={{ marginTop: '40px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <div style={{ background: 'var(--primary-glow)', color: 'var(--primary)', padding: '12px', borderRadius: '50%' }}>
+                <Lock size={32} />
+              </div>
+            </div>
+
+            <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.5rem', color: 'var(--text-primary)', marginBottom: '8px' }}>
+              Manager Access Verification
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
+              Please verify your manager authorization PIN code to access administrative panel settings.
+            </p>
+
+            {selectedManagerIdForAccess === null ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {allEmployees.filter(e => e.role === 'manager' && e.is_active).length === 0 ? (
+                  <p style={{ color: 'var(--accent-red)', fontSize: '0.85rem', marginBottom: '16px' }}>
+                    No active managers registered.
+                  </p>
+                ) : (
+                  allEmployees.filter(e => e.role === 'manager' && e.is_active).map(mgr => (
+                    <button
+                      key={mgr.employee_id}
+                      type="button"
+                      className="btn btn-secondary w-full"
+                      style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}
+                      onClick={() => setSelectedManagerIdForAccess(mgr.employee_id)}
+                    >
+                      <span>{mgr.employee_name}</span>
+                      <span className="badge badge-pending" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                        Manager
+                      </span>
+                    </button>
+                  ))
+                )}
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  style={{ marginTop: '16px' }}
+                  onClick={() => setCurrentTab('dashboard')}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <PinNumpad
+                title={`Enter PIN for ${allEmployees.find(m => m.employee_id === selectedManagerIdForAccess)?.employee_name}`}
+                onPinComplete={handleManagerAccessPinComplete}
+                onCancel={() => setSelectedManagerIdForAccess(null)}
+                error={managerAccessPinError}
+              />
+            )}
+          </div>
+        ) : (
+          /* Render Manager views */
+          managerSubView === 'history' ? (
+            <HistoryViewer onBack={() => setManagerSubView('menu')} defaultAuthenticated={true} />
+          ) : managerSubView === 'chores_manager' ? (
+            <ChoreManager onBack={() => setManagerSubView('menu')} defaultAuthenticated={true} />
+          ) : managerSubView === 'staff_manager' ? (
+            <StaffManager onBack={() => setManagerSubView('menu')} defaultAuthenticated={true} />
+          ) : managerSubView === 'analytics' ? (
+            <AnalyticsDashboard onBack={() => setManagerSubView('menu')} currentShift={currentShift} defaultAuthenticated={true} />
+          ) : (
+            /* managerSubView === 'menu' */
+            <div className="glass-panel animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.6rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)', margin: 0 }}>
+                    Manager Operations Panel
+                  </h2>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                    Access store checklists archives, performance analytics logs, and templates rosters management.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => {
+                    setIsManagerAuthenticated(false);
+                    setCurrentTab('dashboard');
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px' }}
+                >
+                  <LogOut size={16} />
+                  <span>Lock Panel</span>
+                </button>
+              </div>
+
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                gap: '20px', 
+                marginTop: '10px' 
+              }}>
+                {/* Card 1: Shift History */}
+                <div 
+                  className="member-item" 
+                  style={{ 
+                    flexDirection: 'column', 
+                    alignItems: 'flex-start', 
+                    padding: '24px', 
+                    background: 'rgba(255, 255, 255, 0.45)', 
+                    cursor: 'pointer',
+                    gap: '12px',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                  onClick={() => setManagerSubView('history')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--primary)' }}>
+                    <div style={{ background: 'var(--primary-glow)', padding: '10px', borderRadius: '12px' }}>
+                      <Clock size={24} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Shift History</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    View and audit sealed shift ledger checklists, completion operators, signatures, and till reports.
+                  </p>
+                  <button className="btn btn-secondary w-full" style={{ marginTop: '8px', pointerEvents: 'none' }}>
+                    View Shift History
+                  </button>
+                </div>
+
+                {/* Card 2: Analytics Dashboard */}
+                <div 
+                  className="member-item" 
+                  style={{ 
+                    flexDirection: 'column', 
+                    alignItems: 'flex-start', 
+                    padding: '24px', 
+                    background: 'rgba(255, 255, 255, 0.45)', 
+                    cursor: 'pointer',
+                    gap: '12px',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                  onClick={() => setManagerSubView('analytics')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--accent-green)' }}>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '10px', borderRadius: '12px', color: 'var(--accent-green)' }}>
+                      <TrendingUp size={24} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Analytics</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    Audit chore completion rates, track speed anomalies, review streaks, and identify missed days.
+                  </p>
+                  <button className="btn btn-secondary w-full" style={{ marginTop: '8px', pointerEvents: 'none' }}>
+                    View Analytics
+                  </button>
+                </div>
+
+                {/* Card 3: Manage Chores */}
+                <div 
+                  className="member-item" 
+                  style={{ 
+                    flexDirection: 'column', 
+                    alignItems: 'flex-start', 
+                    padding: '24px', 
+                    background: 'rgba(255, 255, 255, 0.45)', 
+                    cursor: 'pointer',
+                    gap: '12px',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                  onClick={() => setManagerSubView('chores_manager')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--accent-amber)' }}>
+                    <div style={{ background: 'rgba(245, 158, 11, 0.08)', padding: '10px', borderRadius: '12px', color: 'var(--accent-amber)' }}>
+                      <ClipboardList size={24} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Manage Chores</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    Add, edit, reorder, and remove chores from the active opening and closing checklist templates.
+                  </p>
+                  <button className="btn btn-secondary w-full" style={{ marginTop: '8px', pointerEvents: 'none' }}>
+                    Configure Chores
+                  </button>
+                </div>
+
+                {/* Card 4: Manage Staff */}
+                <div 
+                  className="member-item" 
+                  style={{ 
+                    flexDirection: 'column', 
+                    alignItems: 'flex-start', 
+                    padding: '24px', 
+                    background: 'rgba(255, 255, 255, 0.45)', 
+                    cursor: 'pointer',
+                    gap: '12px',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                  onClick={() => setManagerSubView('staff_manager')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--primary)' }}>
+                    <div style={{ background: 'var(--primary-glow)', padding: '10px', borderRadius: '12px' }}>
+                      <Users size={24} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Manage Staff</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    Manage store operator and manager accounts, roles, roster profiles, and 6-digit register PINs.
+                  </p>
+                  <button className="btn btn-secondary w-full" style={{ marginTop: '8px', pointerEvents: 'none' }}>
+                    Configure Staff
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        )
       ) : currentTab === 'slow_chores' ? (
         <SlowChoresManager 
           onBack={() => setCurrentTab('dashboard')} 
@@ -646,9 +866,15 @@ function App() {
           </div>
 
           {/* Employee Pin authentication grid */}
-          <div className="glass-panel" style={{ padding: '32px' }}>
-            <h2 style={{ fontSize: '1.4rem', marginBottom: '8px' }}>Who is working this shift?</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '32px', fontSize: '0.9rem' }}>
+          <div className="glass-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <img 
+              src="/logo.png" 
+              alt="Stop & Go Logo" 
+              style={{ width: '100px', height: '100px', marginBottom: '16px', objectFit: 'contain' }}
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+            <h2 style={{ fontSize: '1.4rem', marginBottom: '8px', textAlign: 'center' }}>Who is working this shift?</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '32px', fontSize: '0.9rem', textAlign: 'center' }}>
               Tap each active worker name card and verify their PIN code to build the dynamic roster.
             </p>
 
