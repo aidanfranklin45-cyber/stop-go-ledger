@@ -49,7 +49,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
 
   // Operator select state for completion
   const [completingChore, setCompletingChore] = useState(null);
-  const [selectedCompleterId, setSelectedCompleterId] = useState(selectedOperatorId || "");
+  const [selectedCompleterId, setSelectedCompleterId] = useState("");
 
   // Load slow chores list
   const loadSlowChores = useCallback(async () => {
@@ -78,17 +78,6 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
     loadSlowChores();
     loadEmployees();
   }, [loadSlowChores, loadEmployees]);
-
-  // Sync completer default when selectedOperatorId changes
-  useEffect(() => {
-    if (selectedOperatorId) {
-      setSelectedCompleterId(selectedOperatorId);
-    } else if (activeTeam.length > 0) {
-      setSelectedCompleterId(activeTeam[0].employee_id || activeTeam[0].id);
-    } else {
-      setSelectedCompleterId("");
-    }
-  }, [selectedOperatorId, activeTeam]);
 
   // PIN authentication for manager scheduler settings
   const handleEntryPinComplete = async (pin) => {
@@ -199,35 +188,29 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
     }
   };
 
-  // PIN verification for chore completion
-  const handleChorePinComplete = async (pin) => {
-    setPinError("");
+  // Handle slow chore completion without PIN verification
+  const handleChoreComplete = async () => {
     if (!completingChore || !selectedCompleterId) return;
 
     try {
-      const isValid = await validateEmployeePin(selectedCompleterId, pin);
-      if (isValid) {
-        const employee = allEmployees.find(e => e.employee_id === selectedCompleterId);
-        if (employee) {
-          const updated = await completeSlowChore(
-            completingChore.id,
-            employee.employee_id,
-            employee.employee_name
-          );
-          if (updated) {
-            setCompletingChore(null);
-            setSelectedCompleterId("");
-            setPinError("");
-            await loadSlowChores();
-          } else {
-            setPinError("Failed to record chore completion.");
-          }
+      const employee = allEmployees.find(e => e.employee_id === selectedCompleterId);
+      if (employee) {
+        const updated = await completeSlowChore(
+          completingChore.id,
+          employee.employee_id,
+          employee.employee_name
+        );
+        if (updated) {
+          setCompletingChore(null);
+          setSelectedCompleterId("");
+          await loadSlowChores();
+        } else {
+          alert("Failed to record chore completion.");
         }
-      } else {
-        setPinError("Incorrect PIN code.");
       }
     } catch (err) {
-      setPinError("PIN validation error.");
+      console.error(err);
+      alert("Error marking completion.");
     }
   };
 
@@ -375,8 +358,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
                       className="btn btn-success"
                       onClick={() => {
                         setCompletingChore(chore);
-                        setSelectedCompleterId(selectedOperatorId || "");
-                        setPinError("");
+                        setSelectedCompleterId("");
                       }}
                       style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
@@ -466,40 +448,43 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId }) => {
               Chore: <span style={{ color: 'var(--primary)' }}>{completingChore.name}</span>
             </p>
 
-            {selectedCompleterId === "" ? (
-              <div className="form-group" style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                  Completed By
-                </label>
-                <select
-                  className="form-input"
-                  value={selectedCompleterId}
-                  onChange={(e) => setSelectedCompleterId(e.target.value)}
-                  style={{ padding: '10px', fontSize: '0.9rem', cursor: 'pointer', width: '100%', marginBottom: '16px' }}
-                >
-                  <option value="">Select Employee</option>
-                  {allEmployees.map(emp => (
-                    <option key={emp.employee_id} value={emp.employee_id}>
-                      {emp.employee_name} ({emp.role})
-                    </option>
-                  ))}
-                </select>
-                
-                <button 
-                  className="btn btn-secondary w-full"
-                  onClick={() => setCompletingChore(null)}
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <PinNumpad
-                title={`Enter PIN for ${allEmployees.find(e => e.employee_id === selectedCompleterId)?.employee_name}`}
-                onPinComplete={handleChorePinComplete}
-                onCancel={() => setSelectedCompleterId("")}
-                error={pinError}
-              />
-            )}
+            <div className="form-group" style={{ marginBottom: '20px' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Completed By
+              </label>
+              <select
+                className="form-input"
+                value={selectedCompleterId}
+                onChange={(e) => setSelectedCompleterId(e.target.value)}
+                style={{ padding: '10px', fontSize: '0.9rem', cursor: 'pointer', width: '100%', marginBottom: '16px' }}
+              >
+                <option value="">Select Employee</option>
+                {allEmployees.map(emp => (
+                  <option key={emp.employee_id} value={emp.employee_id}>
+                    {emp.employee_name} ({emp.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                className="btn btn-secondary w-full"
+                onClick={() => {
+                  setCompletingChore(null);
+                  setSelectedCompleterId("");
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-success w-full"
+                onClick={handleChoreComplete}
+                disabled={!selectedCompleterId}
+              >
+                Confirm Complete
+              </button>
+            </div>
           </div>
         </div>
       )}

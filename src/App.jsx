@@ -44,6 +44,7 @@ import ChoreManager from './components/ChoreManager';
 import StaffManager from './components/StaffManager';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import SlowChoresManager from './components/SlowChoresManager';
+import logo from './assets/logo.png';
 
 function App() {
   // --- UI & Panel states ---
@@ -438,7 +439,7 @@ function App() {
       <header className="header glass-panel animate-fade-in">
         <div className="logo-section" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <img 
-            src="/logo.png" 
+            src={logo} 
             alt="Stop & Go Logo" 
             style={{ width: '40px', height: '40px', objectFit: 'contain' }} 
             onError={(e) => { e.target.style.display = 'none'; }}
@@ -868,7 +869,7 @@ function App() {
           {/* Employee Pin authentication grid */}
           <div className="glass-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <img 
-              src="/logo.png" 
+              src={logo} 
               alt="Stop & Go Logo" 
               style={{ width: '100px', height: '100px', marginBottom: '16px', objectFit: 'contain' }}
               onError={(e) => { e.target.style.display = 'none'; }}
