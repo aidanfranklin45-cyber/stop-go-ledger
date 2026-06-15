@@ -8,8 +8,7 @@ import {
   Calendar, 
   DollarSign, 
   CheckCircle2, 
-  Activity, 
-  Clock, 
+  Activity,
   Lock 
 } from 'lucide-react';
 import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin } from '../firebase';
@@ -190,59 +189,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
   const openingShifts = shiftsDetail.filter(s => s.shift_type === 'opening');
   const closingShifts = shiftsDetail.filter(s => s.shift_type === 'closing');
 
-  // 7. Chore Completion Durations & Running Averages
-  const taskDurations = {}; // { [task_name]: [duration1, duration2, ...] }
-  shiftsDetail.forEach(s => {
-    const shiftInit = parseTime(s.initialized_at);
-    if (!shiftInit || !s.tasks) return;
-    Object.values(s.tasks).forEach(t => {
-      if (t.is_completed && t.timestamp) {
-        const taskDone = parseTime(t.timestamp);
-        if (taskDone && taskDone >= shiftInit) {
-          const durationMins = (taskDone - shiftInit) / (60 * 1000);
-          if (!taskDurations[t.task_name]) {
-            taskDurations[t.task_name] = [];
-          }
-          taskDurations[t.task_name].push(durationMins);
-        }
-      }
-    });
-  });
 
-  const taskAverages = {}; // { [task_name]: avg_mins }
-  Object.entries(taskDurations).forEach(([name, durations]) => {
-    const sum = durations.reduce((a, b) => a + b, 0);
-    taskAverages[name] = sum / durations.length;
-  });
-
-  // 8. Auditing Speedy Completions
-  const speedyAlerts = [];
-  shiftsDetail.forEach(s => {
-    const shiftInit = parseTime(s.initialized_at);
-    if (!shiftInit || !s.tasks) return;
-    Object.values(s.tasks).forEach(t => {
-      if (t.is_completed && t.timestamp && t.completed_by_name) {
-        const taskDone = parseTime(t.timestamp);
-        const avg = taskAverages[t.task_name];
-        if (taskDone && avg && avg >= 3) { // running average must be >= 3 minutes
-          const taken = (taskDone - shiftInit) / (60 * 1000);
-          // Flag if taken < 40% of average and the raw difference is at least 2 minutes
-          if (taken < (0.4 * avg) && (avg - taken) >= 2) {
-            speedyAlerts.push({
-              task_name: t.task_name,
-              completed_by_name: t.completed_by_name,
-              taken_mins: Math.round(taken * 10) / 10,
-              avg_mins: Math.round(avg * 10) / 10,
-              date: s.date,
-              shift_type: s.shift_type,
-              shift_id: s.shift_id
-            });
-          }
-        }
-      }
-    });
-  });
-  speedyAlerts.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   // 9. Missing Shift Checklist Tracking (past 30 days excluding today)
   const missingShifts = [];
@@ -551,55 +498,56 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
           {/* Speed Audit & Missing Reports Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
             
-            {/* Chore Speed Audits Card */}
+            {/* Till Discrepancy Log Card */}
             <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
-                <Clock size={20} style={{ color: 'var(--accent-amber)' }} />
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Chore Speed Audits</h3>
+                <Activity size={20} style={{ color: 'var(--text-secondary)' }} />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Till Discrepancy Log</h3>
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                Flags chores completed in less than 40% of their historical average time (minimum 3 mins average).
+                Tracks shift closing balance reports and discrepancies over the past 30 days.
               </p>
-              {speedyAlerts.length === 0 ? (
-                <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '120px' }}>
-                  <p style={{ color: 'var(--accent-green)', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>
-                    ✅ All completions align with expected durations.
-                  </p>
-                </div>
+              {closingShifts.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '20px', flexGrow: 1 }}>
+                  No closing shift report history recorded.
+                </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '300px' }}>
-                  {speedyAlerts.map((alert, idx) => (
-                    <div 
-                      key={idx} 
-                      className="member-item animate-fade-in" 
-                      style={{ 
-                        background: 'rgba(239, 68, 68, 0.04)', 
-                        borderColor: 'rgba(239, 68, 68, 0.15)',
-                        padding: '12px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '4px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {alert.task_name}
-                        </span>
-                        <span className="badge badge-missed" style={{ fontSize: '0.65rem', background: 'var(--accent-red-glow)', color: 'var(--accent-red)' }}>
-                          Speed Warning
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        <span>Completed by: <strong>{alert.completed_by_name}</strong></span>
-                        <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>
-                          {alert.taken_mins}m <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(Avg: {alert.avg_mins}m)</span>
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                        {alert.date} ({alert.shift_type.toUpperCase()})
-                      </div>
-                    </div>
-                  ))}
+                <div style={{ overflowX: 'auto', flexGrow: 1 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                        <th style={{ padding: '12px 4px', color: 'var(--text-secondary)' }}>Date</th>
+                        <th style={{ padding: '12px 4px', color: 'var(--text-secondary)' }}>Status</th>
+                        <th style={{ padding: '12px 4px', color: 'var(--text-secondary)' }}>Amount</th>
+                        <th style={{ padding: '12px 4px', color: 'var(--text-secondary)' }}>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {closingShifts.map((s) => {
+                        const amount = Number(s.till_discrepancy_amount || 0);
+                        return (
+                          <tr key={s.shift_id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                            <td style={{ padding: '12px 4px', fontWeight: 600, color: 'var(--text-primary)' }}>{s.date}</td>
+                            <td style={{ padding: '12px 4px' }}>
+                              <span className={`badge ${s.till_status === 'balanced' ? 'badge-submitted' : 'badge-missed'}`} style={{ textTransform: 'capitalize', fontSize: '0.65rem', padding: '2px 4px' }}>
+                                {s.till_status || 'N/A'}
+                              </span>
+                            </td>
+                            <td style={{ 
+                              padding: '12px 4px', 
+                              fontWeight: 700, 
+                              color: s.till_status === 'balanced' ? 'var(--text-primary)' : s.till_status === 'over' ? 'var(--accent-amber)' : 'var(--accent-red)'
+                            }}>
+                              {s.till_status === 'balanced' ? '$0.00' : s.till_status === 'over' ? `+$${amount.toFixed(2)}` : `-$${amount.toFixed(2)}`}
+                            </td>
+                            <td style={{ padding: '12px 4px', color: 'var(--text-secondary)' }}>
+                              {s.submitted_at ? formatSubmittedTime(s.submitted_at) : 'Auto'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -650,60 +598,6 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                 </div>
               )}
             </div>
-
-          </div>
-
-          {/* Till Discrepancy Log Card */}
-          <div className="glass-panel" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
-              <Activity size={20} style={{ color: 'var(--text-secondary)' }} />
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Till Discrepancy Log</h3>
-            </div>
-            
-            {closingShifts.length === 0 ? (
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '20px' }}>
-                No closing shift report history recorded.
-              </p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                      <th style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Shift Date</th>
-                      <th style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Till Status</th>
-                      <th style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Amount</th>
-                      <th style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>Sealed Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {closingShifts.map((s) => {
-                      const amount = Number(s.till_discrepancy_amount || 0);
-                      
-                      return (
-                        <tr key={s.shift_id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                          <td style={{ padding: '12px 8px', fontWeight: 600, color: 'var(--text-primary)' }}>{s.date}</td>
-                          <td style={{ padding: '12px 8px' }}>
-                            <span className={`badge ${s.till_status === 'balanced' ? 'badge-submitted' : 'badge-missed'}`} style={{ textTransform: 'capitalize' }}>
-                              {s.till_status || 'N/A'}
-                            </span>
-                          </td>
-                          <td style={{ 
-                            padding: '12px 8px', 
-                            fontWeight: 700, 
-                            color: s.till_status === 'balanced' ? 'var(--text-primary)' : s.till_status === 'over' ? 'var(--accent-amber)' : 'var(--accent-red)'
-                          }}>
-                            {s.till_status === 'balanced' ? '$0.00' : s.till_status === 'over' ? `+$${amount.toFixed(2)}` : `-$${amount.toFixed(2)}`}
-                          </td>
-                          <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>
-                            {s.submitted_at ? formatSubmittedTime(s.submitted_at) : 'Auto-archived'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         </>
       )}

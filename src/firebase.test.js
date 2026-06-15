@@ -188,6 +188,82 @@ describe('Firebase Service Unit Tests', () => {
       const regressedShift = await updateTask(testShiftId, OPENING_TASKS[0].id, false, null, null);
       expect(regressedShift.status).toBe('open');
     });
+
+    it('should initialize and map subtasks correctly during startShift', async () => {
+      const { startShift } = firebaseModule;
+      const testShiftId = 'shift_subtask_init';
+      
+      const shift = await startShift(testShiftId, 'opening', '2026-06-12', ['EMP_01']);
+      const bleachChore = shift.tasks['OP_06'];
+      
+      expect(bleachChore).toBeDefined();
+      expect(bleachChore.subtasks).toBeDefined();
+      expect(bleachChore.subtasks.length).toBe(4);
+      expect(bleachChore.subtasks[0].name).toBe("Fill bucket 2/3 full of water");
+      expect(bleachChore.subtasks[0].is_completed).toBe(false);
+    });
+
+    it('should save partial subtasks progress without completing the main task', async () => {
+      const { startShift, updateTask } = firebaseModule;
+      const testShiftId = 'shift_subtask_partial';
+      await startShift(testShiftId, 'opening', '2026-06-12', ['EMP_01']);
+      
+      const updatedSubtasks = [
+        { name: "Fill bucket 2/3 full of water", is_completed: true },
+        { name: "Add cap full of bleach", is_completed: false },
+        { name: "Test sanitizer concentration (100ppm)", is_completed: false },
+        { name: "Distribute clean rags to stations", is_completed: false }
+      ];
+
+      const updatedShift = await updateTask(testShiftId, 'OP_06', false, null, null, updatedSubtasks);
+      
+      expect(updatedShift.tasks['OP_06'].is_completed).toBe(false);
+      expect(updatedShift.tasks['OP_06'].subtasks[0].is_completed).toBe(true);
+      expect(updatedShift.tasks['OP_06'].subtasks[1].is_completed).toBe(false);
+      expect(updatedShift.completed_count).toBe(0);
+    });
+
+    it('should complete task and increment count when all subtasks completed', async () => {
+      const { startShift, updateTask } = firebaseModule;
+      const testShiftId = 'shift_subtask_complete';
+      await startShift(testShiftId, 'opening', '2026-06-12', ['EMP_01']);
+      
+      const completedSubtasks = [
+        { name: "Fill bucket 2/3 full of water", is_completed: true },
+        { name: "Add cap full of bleach", is_completed: true },
+        { name: "Test sanitizer concentration (100ppm)", is_completed: true },
+        { name: "Distribute clean rags to stations", is_completed: true }
+      ];
+
+      const updatedShift = await updateTask(testShiftId, 'OP_06', true, 'EMP_01', 'Alice Smith', completedSubtasks);
+      
+      expect(updatedShift.tasks['OP_06'].is_completed).toBe(true);
+      expect(updatedShift.tasks['OP_06'].completed_by_name).toBe('Alice Smith');
+      expect(updatedShift.tasks['OP_06'].subtasks.every(st => st.is_completed)).toBe(true);
+      expect(updatedShift.completed_count).toBe(1);
+    });
+
+    it('should reset all subtasks when task is marked incomplete', async () => {
+      const { startShift, updateTask } = firebaseModule;
+      const testShiftId = 'shift_subtask_reset';
+      await startShift(testShiftId, 'opening', '2026-06-12', ['EMP_01']);
+      
+      const completedSubtasks = [
+        { name: "Fill bucket 2/3 full of water", is_completed: true },
+        { name: "Add cap full of bleach", is_completed: true },
+        { name: "Test sanitizer concentration (100ppm)", is_completed: true },
+        { name: "Distribute clean rags to stations", is_completed: true }
+      ];
+      await updateTask(testShiftId, 'OP_06', true, 'EMP_01', 'Alice Smith', completedSubtasks);
+
+      const resetSubtasks = completedSubtasks.map(st => ({ ...st, is_completed: false }));
+      const updatedShift = await updateTask(testShiftId, 'OP_06', false, null, null, resetSubtasks);
+
+      expect(updatedShift.tasks['OP_06'].is_completed).toBe(false);
+      expect(updatedShift.tasks['OP_06'].completed_by_id).toBeNull();
+      expect(updatedShift.tasks['OP_06'].subtasks.every(st => !st.is_completed)).toBe(true);
+      expect(updatedShift.completed_count).toBe(0);
+    });
   });
 
   describe('updateShiftRoster', () => {

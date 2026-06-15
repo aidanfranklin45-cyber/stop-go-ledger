@@ -13,7 +13,8 @@ import {
   Clock, 
   User, 
   Check, 
-  AlertTriangle 
+  AlertTriangle,
+  X 
 } from 'lucide-react';
 import { updateShiftNotes } from '../firebase';
 
@@ -39,6 +40,21 @@ const ChoreLedger = ({
 }) => {
   const [notes, setNotes] = useState(shift?.notes || "");
   const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [subtaskModalTask, setSubtaskModalTask] = useState(null);
+  const [localSubtasks, setLocalSubtasks] = useState([]);
+
+  // Sync subtasks local state when modal target changes
+  useEffect(() => {
+    if (subtaskModalTask) {
+      setLocalSubtasks(subtaskModalTask.subtasks ? [...subtaskModalTask.subtasks] : []);
+    } else {
+      setLocalSubtasks([]);
+    }
+  }, [subtaskModalTask]);
+
+  const handleLocalSubtaskToggle = (index) => {
+    setLocalSubtasks(prev => prev.map((st, i) => i === index ? { ...st, is_completed: !st.is_completed } : st));
+  };
 
   // Sync state if shift prop changes (e.g. initial load or reset)
   useEffect(() => {
@@ -107,14 +123,19 @@ const ChoreLedger = ({
   const handleCardClick = (task) => {
     if (task.is_completed) {
       if (window.confirm(`Mark "${task.task_name}" as incomplete?`)) {
-        onTaskToggle(task.task_id, false, null, null);
+        const resetSubtasks = task.subtasks ? task.subtasks.map(st => ({ ...st, is_completed: false })) : [];
+        onTaskToggle(task.task_id, false, null, null, resetSubtasks);
       }
     } else {
       if (!activeOpId) {
         alert("Please check in or select an operator from the list first.");
         return;
       }
-      onTaskToggle(task.task_id, true, activeOpId, activeOpName);
+      if (task.subtasks && task.subtasks.length > 0) {
+        setSubtaskModalTask(task);
+      } else {
+        onTaskToggle(task.task_id, true, activeOpId, activeOpName, []);
+      }
     }
   };
 
@@ -234,6 +255,25 @@ const ChoreLedger = ({
 
                       <div className="task-content">
                         <div className="task-name">{task.task_name}</div>
+                        {task.subtasks && task.subtasks.length > 0 && !isCompleted && (
+                          <div style={{ 
+                            fontSize: '0.7rem', 
+                            color: 'var(--text-secondary)', 
+                            marginTop: '6px', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            background: 'rgba(79, 70, 229, 0.06)',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 600
+                          }}>
+                            <ClipboardList size={11} style={{ color: 'var(--primary)' }} />
+                            <span>
+                              {task.subtasks.filter(st => st.is_completed).length} of {task.subtasks.length} steps
+                            </span>
+                          </div>
+                        )}
                         {(isCompleted || isMissed) && (
                           <div className="task-meta">
                             {isCompleted && (
@@ -319,6 +359,95 @@ const ChoreLedger = ({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Sub-tasks checklist modal */}
+      {subtaskModalTask && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', 
+          justifyContent: 'center', zIndex: 1000, padding: '16px', backdropFilter: 'blur(4px)'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{ padding: '24px', maxWidth: '450px', width: '100%', background: '#ffffff', color: 'var(--text-primary)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '10px' }}>
+              <div style={{ textAlign: 'left' }}>
+                <span className="badge badge-open" style={{ fontSize: '0.65rem', marginBottom: '4px', display: 'inline-block', textTransform: 'uppercase' }}>
+                  {subtaskModalTask.category}
+                </span>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {subtaskModalTask.task_name}
+                </h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setSubtaskModalTask(null)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', textAlign: 'left' }}>
+              Check off all steps to complete this chore.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
+              {localSubtasks.map((st, idx) => (
+                <div 
+                  key={idx}
+                  onClick={() => handleLocalSubtaskToggle(idx)}
+                  className={`member-item ${st.is_completed ? 'signed' : ''}`}
+                  style={{ 
+                    padding: '12px 16px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '12px',
+                    cursor: 'pointer',
+                    background: st.is_completed ? 'var(--accent-green-glow)' : 'rgba(0,0,0,0.02)',
+                    borderColor: st.is_completed ? 'var(--accent-green)' : 'var(--glass-border)'
+                  }}
+                >
+                  <div className="task-checkbox" style={{ margin: 0, background: st.is_completed ? 'var(--accent-green)' : 'transparent', color: st.is_completed ? '#ffffff' : 'transparent', borderColor: st.is_completed ? 'var(--accent-green)' : 'var(--text-muted)' }}>
+                    {st.is_completed && <Check size={12} strokeWidth={3} />}
+                  </div>
+                  <span style={{ 
+                    fontSize: '0.9rem', 
+                    color: 'var(--text-primary)',
+                    textDecoration: st.is_completed ? 'line-through' : 'none',
+                    fontWeight: 500,
+                    textAlign: 'left'
+                  }}>
+                    {st.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                className="btn btn-secondary w-full"
+                onClick={() => {
+                  // Save partial progress
+                  onTaskToggle(subtaskModalTask.task_id, false, null, null, localSubtasks);
+                  setSubtaskModalTask(null);
+                }}
+              >
+                Save Progress
+              </button>
+              <button 
+                className="btn btn-success w-full"
+                disabled={localSubtasks.length === 0 || !localSubtasks.every(st => st.is_completed)}
+                onClick={() => {
+                  // Complete the task
+                  onTaskToggle(subtaskModalTask.task_id, true, activeOpId, activeOpName, localSubtasks);
+                  setSubtaskModalTask(null);
+                }}
+              >
+                Confirm Complete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

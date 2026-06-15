@@ -49,6 +49,8 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
   const [newName, setNewName] = useState("");
   const [newCategory, setNewCategory] = useState("Equipment");
   const [newShiftType, setNewShiftType] = useState("opening");
+  const [formSubtasks, setFormSubtasks] = useState([]);
+  const [newSubtaskText, setNewSubtaskText] = useState("");
 
   const loadData = useCallback(async () => {
     try {
@@ -107,17 +109,20 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
         await updateChoreTemplate(editingChore.id, {
           name: newName.trim(),
           cat: newCategory,
-          shift_type: newShiftType
+          shift_type: newShiftType,
+          subtasks: formSubtasks
         });
         setEditingChore(null);
       } else {
         await addChoreTemplate({
           name: newName.trim(),
           cat: newCategory,
-          shift_type: newShiftType
+          shift_type: newShiftType,
+          subtasks: formSubtasks
         });
       }
       setNewName("");
+      setFormSubtasks([]);
       await loadTemplates();
     } catch (err) {
       console.error(err);
@@ -129,6 +134,7 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
     setNewName(chore.name);
     setNewCategory(chore.cat);
     setNewShiftType(chore.shift_type);
+    setFormSubtasks(chore.subtasks || []);
   };
 
   const handleCancelEdit = () => {
@@ -136,6 +142,8 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
     setNewName("");
     setNewCategory("Equipment");
     setNewShiftType(filterShiftType);
+    setFormSubtasks([]);
+    setNewSubtaskText("");
   };
 
   const handleDeleteChore = async (id, name) => {
@@ -317,7 +325,7 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
                       {t.name}
                     </span>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
-                      Category: {t.cat}
+                      Category: {t.cat} {t.subtasks && t.subtasks.length > 0 && `• ${t.subtasks.length} steps`}
                     </span>
                   </div>
                 </div>
@@ -430,6 +438,67 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
                 onClick={() => setNewShiftType('closing')}
               >
                 Closing
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-tasks section */}
+          <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Sub-tasks / Procedures (Optional)
+            </label>
+            
+            {/* Added list */}
+            {formSubtasks.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px', maxHeight: '150px', overflowY: 'auto', background: 'rgba(0,0,0,0.02)', padding: '8px', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
+                {formSubtasks.map((st, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.04)' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', wordBreak: 'break-all', textAlign: 'left' }}>
+                      {idx + 1}. {st}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFormSubtasks(prev => prev.filter((_, i) => i !== idx))}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Input to add new subtask */}
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="text"
+                className="form-input"
+                value={newSubtaskText}
+                onChange={(e) => setNewSubtaskText(e.target.value)}
+                placeholder="e.g. Clean the faucet"
+                style={{ padding: '8px', fontSize: '0.85rem' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newSubtaskText.trim()) {
+                      setFormSubtasks(prev => [...prev, newSubtaskText.trim()]);
+                      setNewSubtaskText("");
+                    }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '8px 12px' }}
+                onClick={() => {
+                  if (newSubtaskText.trim()) {
+                    setFormSubtasks(prev => [...prev, newSubtaskText.trim()]);
+                    setNewSubtaskText("");
+                  }
+                }}
+              >
+                Add
               </button>
             </div>
           </div>

@@ -28,7 +28,17 @@ export const OPENING_TASKS = [
   { id: "OP_03", cat: "Equipment", name: "Turn on Fryers at 30 minutes prior to Opening" },
   { id: "OP_04", cat: "Equipment", name: "Turn on Grille and Hood Fan at 30 minutes prior to Opening" },
   { id: "OP_05", cat: "Facilities", name: "Water grass and Flowers" },
-  { id: "OP_06", cat: "Sanitation", name: "Prepare a bleach bucket with a cap full of bleach and 2/3 full of water" },
+  { 
+    id: "OP_06", 
+    cat: "Sanitation", 
+    name: "Prepare a bleach bucket with a cap full of bleach and 2/3 full of water",
+    subtasks: [
+      "Fill bucket 2/3 full of water",
+      "Add cap full of bleach",
+      "Test sanitizer concentration (100ppm)",
+      "Distribute clean rags to stations"
+    ]
+  },
   { id: "OP_07", cat: "Prep", name: "Need three full half-inserts of sliced tomatoes - see what you have and cut what you need to make three total" },
   { id: "OP_08", cat: "Prep", name: "Need three full inserts of lettuce - Cored, Quartered and shredded thin - Wash lettuce after coring" },
   { id: "OP_09", cat: "Prep", name: "Need two full half-inserts of pickles" },
@@ -45,13 +55,32 @@ export const OPENING_TASKS = [
   { id: "OP_20", cat: "Facilities", name: "Wipe down picnic tables with soapy water and rag (rag to dirty hamper after)" },
   { id: "OP_21", cat: "Equipment", name: "Scoop Fryers" },
   { id: "OP_22", cat: "Equipment", name: "Check Pop Machine Bags and CO2 Levels" },
-  { id: "OP_23", cat: "Financial", name: "Open Till at $300 and put some money in Till" },
+  { 
+    id: "OP_23", 
+    cat: "Financial", 
+    name: "Open Till at $300 and put some money in Till",
+    subtasks: [
+      "Verify starting cash register till balance is $300.00",
+      "Separate bills and coins neatly by denomination",
+      "Confirm coin rolls are in drawer backup"
+    ]
+  },
   { id: "OP_24", cat: "Front of House", name: "At 10:30 turn on open signs and bring out Sandwich Board" }
 ];
 
 export const CLOSING_TASKS = [
   { id: "CL_01", cat: "Front of House", name: "At Closing Time turn off open signs and bring in sandwich board" },
-  { id: "CL_02", cat: "Heavy Clean", name: "Clean Grille - Empty and Scrape Grease Trap into Oil Bins outside" },
+  { 
+    id: "CL_02", 
+    cat: "Heavy Clean", 
+    name: "Clean Grille - Empty and Scrape Grease Trap into Oil Bins outside",
+    subtasks: [
+      "Scrape flat top grill surface with grill brick",
+      "Clean grease gutters and troughs",
+      "Empty grease collection drawers",
+      "Dispose of grease in external oil bin"
+    ]
+  },
   { id: "CL_03", cat: "Heavy Clean", name: "Empty above grille grease trap" },
   { id: "CL_04", cat: "Equipment", name: "Turn off Grille and Fryers" },
   { id: "CL_05", cat: "Heavy Clean", name: "Wipe around Grille and Fryers as best you can (Be careful, hot!)" },
@@ -64,7 +93,17 @@ export const CLOSING_TASKS = [
   { id: "CL_12", cat: "Equipment", name: "Ice in pop machine" },
   { id: "CL_13", cat: "Facilities", name: "Empty all garbages - Inside" },
   { id: "CL_14", cat: "Facilities", name: "Empty outside garbages that are over 1/2 full" },
-  { id: "CL_15", cat: "Sanitation", name: "Clean Bathroom - Cleanser and rubber gloves are in there" },
+  { 
+    id: "CL_15", 
+    cat: "Sanitation", 
+    name: "Clean Bathroom - Cleanser and rubber gloves are in there",
+    subtasks: [
+      "Scrub toilet bowl, seat, and exterior surfaces",
+      "Wipe down mirror, sink basin, and faucet fixture",
+      "Empty bathroom waste receptacle",
+      "Restock paper towels, toilet tissue rolls, and hand soap"
+    ]
+  },
   { id: "CL_16", cat: "Facilities", name: "Bring rug outside and shake" },
   { id: "CL_17", cat: "Facilities", name: "Mop and Scrub following detailed directions (includes bathroom, rug back when dry)" },
   { id: "CL_18", cat: "Equipment", name: "Fill Ice Cream Machine to Line" },
@@ -274,7 +313,8 @@ export async function startShift(shiftId, shiftType, date, activeTeamPids) {
       completed_by_id: null,
       completed_by_name: null,
       timestamp: null,
-      requires_verification: false
+      requires_verification: false,
+      subtasks: t.subtasks ? t.subtasks.map(stName => ({ name: stName, is_completed: false })) : []
     };
   });
 
@@ -347,6 +387,10 @@ export async function seedTestScenario(shiftId, shiftType, date) {
 
     if (shouldComplete) completedCount++;
 
+    const subtasks = t.subtasks 
+      ? t.subtasks.map(stName => ({ name: stName, is_completed: shouldComplete })) 
+      : [];
+
     initialTasks[t.id] = {
       task_id: t.id,
       task_name: t.name,
@@ -355,7 +399,8 @@ export async function seedTestScenario(shiftId, shiftType, date) {
       completed_by_id: completedBy ? completedBy.id : null,
       completed_by_name: completedBy ? completedBy.name : null,
       timestamp: timestamp,
-      requires_verification: false
+      requires_verification: false,
+      subtasks: subtasks
     };
   });
 
@@ -402,19 +447,23 @@ export async function seedTestScenario(shiftId, shiftType, date) {
   return shiftData;
 }
 
-export async function updateTask(shiftId, taskId, isCompleted, completedById, completedByName) {
+export async function updateTask(shiftId, taskId, isCompleted, completedById, completedByName, subtasks = null) {
   const timestamp = isCompleted ? new Date().toISOString() : null;
 
   if (isLiveMode()) {
     try {
       // Update task in subcollection
       const taskDocRef = doc(db, 'active_shifts', shiftId, 'tasks', taskId);
-      await updateDoc(taskDocRef, {
+      const updateData = {
         is_completed: isCompleted,
         completed_by_id: completedById,
         completed_by_name: completedByName,
         timestamp: isCompleted ? serverTimestamp() : null
-      });
+      };
+      if (subtasks !== null) {
+        updateData.subtasks = subtasks;
+      }
+      await updateDoc(taskDocRef, updateData);
 
       // Recalculate completed count on Firestore
       const tasksSnap = await getDocs(collection(db, 'active_shifts', shiftId, 'tasks'));
@@ -445,6 +494,9 @@ export async function updateTask(shiftId, taskId, isCompleted, completedById, co
     shift.tasks[taskId].completed_by_id = completedById;
     shift.tasks[taskId].completed_by_name = completedByName;
     shift.tasks[taskId].timestamp = timestamp;
+    if (subtasks !== null) {
+      shift.tasks[taskId].subtasks = subtasks;
+    }
 
     // Recalculate completion
     let completedCount = 0;
@@ -757,13 +809,13 @@ export async function getChoreTemplates() {
         const seeded = [];
         for (const t of OPENING_TASKS) {
           const docRef = doc(db, 'chore_templates', t.id);
-          const data = { id: t.id, name: t.name, cat: t.cat, shift_type: 'opening' };
+          const data = { id: t.id, name: t.name, cat: t.cat, shift_type: 'opening', subtasks: t.subtasks || [] };
           await setDoc(docRef, data);
           seeded.push(data);
         }
         for (const t of CLOSING_TASKS) {
           const docRef = doc(db, 'chore_templates', t.id);
-          const data = { id: t.id, name: t.name, cat: t.cat, shift_type: 'closing' };
+          const data = { id: t.id, name: t.name, cat: t.cat, shift_type: 'closing', subtasks: t.subtasks || [] };
           await setDoc(docRef, data);
           seeded.push(data);
         }
@@ -779,10 +831,10 @@ export async function getChoreTemplates() {
   if (!stored) {
     const defaultTemplates = [];
     OPENING_TASKS.forEach(t => {
-      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'opening' });
+      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'opening', subtasks: t.subtasks || [] });
     });
     CLOSING_TASKS.forEach(t => {
-      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'closing' });
+      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'closing', subtasks: t.subtasks || [] });
     });
     localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(defaultTemplates));
     return defaultTemplates;
@@ -796,7 +848,8 @@ export async function addChoreTemplate(chore) {
     id: newId,
     name: chore.name,
     cat: chore.cat,
-    shift_type: chore.shift_type
+    shift_type: chore.shift_type,
+    subtasks: chore.subtasks || []
   };
 
   if (isLiveMode()) {
@@ -837,7 +890,8 @@ export async function updateChoreTemplate(id, chore) {
     id: id,
     name: chore.name,
     cat: chore.cat,
-    shift_type: chore.shift_type
+    shift_type: chore.shift_type,
+    subtasks: chore.subtasks || []
   };
 
   if (isLiveMode()) {

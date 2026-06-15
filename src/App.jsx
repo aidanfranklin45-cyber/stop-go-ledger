@@ -248,7 +248,7 @@ function App() {
   };
 
   // --- State 02 Operations ---
-  const handleTaskToggle = async (taskId, isCompleted, employeeId = null, employeeName = null) => {
+  const handleTaskToggle = async (taskId, isCompleted, employeeId = null, employeeName = null, subtasks = null) => {
     if (!currentShift) return;
 
     // Store original state for potential rollback
@@ -258,10 +258,10 @@ function App() {
     const currentTask = currentShift.tasks[taskId];
     const wasCompleted = currentTask ? currentTask.is_completed : false;
     
-    // If no change, do nothing
-    if (wasCompleted === isCompleted) return;
+    // If no change in completion and no subtasks update, do nothing
+    if (wasCompleted === isCompleted && subtasks === null) return;
 
-    const completedDiff = isCompleted ? 1 : -1;
+    const completedDiff = wasCompleted === isCompleted ? 0 : (isCompleted ? 1 : -1);
     const optimisticCompletedCount = (currentShift.completed_count || 0) + completedDiff;
 
     // Optimistically determine new status
@@ -272,19 +272,24 @@ function App() {
       optimisticStatus = 'open';
     }
 
+    const taskUpdates = {
+      ...currentShift.tasks[taskId],
+      is_completed: isCompleted,
+      completed_by_id: employeeId,
+      completed_by_name: employeeName,
+      timestamp: isCompleted ? new Date().toISOString() : null
+    };
+    if (subtasks !== null) {
+      taskUpdates.subtasks = subtasks;
+    }
+
     const optimisticShift = {
       ...currentShift,
       completed_count: optimisticCompletedCount,
       status: optimisticStatus,
       tasks: {
         ...currentShift.tasks,
-        [taskId]: {
-          ...currentShift.tasks[taskId],
-          is_completed: isCompleted,
-          completed_by_id: employeeId,
-          completed_by_name: employeeName,
-          timestamp: isCompleted ? new Date().toISOString() : null
-        }
+        [taskId]: taskUpdates
       }
     };
 
@@ -297,7 +302,8 @@ function App() {
         taskId,
         isCompleted,
         employeeId,
-        employeeName
+        employeeName,
+        subtasks
       );
       // Sync with final server state (ensuring Firestore serverTimestamp is formatted correctly)
       if (updated) {
@@ -727,7 +733,7 @@ function App() {
                     <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Analytics</h3>
                   </div>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                    Audit chore completion rates, track speed anomalies, review streaks, and identify missed days.
+                    Audit chore completion rates, track cash register till discrepancies, review streaks, and identify missed days.
                   </p>
                   <button className="btn btn-secondary w-full" style={{ marginTop: '8px', pointerEvents: 'none' }}>
                     View Analytics
