@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if employee data matches expected schema
+    function isValidEmployee() {
+      return request.resource.data.keys().hasAll(['employee_id', 'employee_name', 'pin_hash', 'role', 'is_active'])
+        && request.resource.data.employee_id is string
+        && request.resource.data.employee_name is string
+        && request.resource.data.role in ['manager', 'operator'];
+    }
+
+    // Helper function to check if chore template data matches expected schema
+    function isValidChoreTemplate() {
+      return request.resource.data.keys().hasAll(['id', 'name', 'cat', 'shift_type'])
+        && request.resource.data.id is string
+        && request.resource.data.name is string
+        && request.resource.data.shift_type in ['opening', 'closing'];
+    }
+
+    // Helper function to check if slow chore data matches expected schema
+    function isValidSlowChore() {
+      return request.resource.data.keys().hasAll(['id', 'name', 'frequency_days'])
+        && request.resource.data.id is string
+        && request.resource.data.name is string
+        && request.resource.data.frequency_days is number;
+    }
+
+    // Helper function to check if shift data matches expected schema
+    function isValidShift() {
+      return request.resource.data.keys().hasAll(['shift_id', 'shift_type', 'date', 'status'])
+        && request.resource.data.shift_id is string
+        && request.resource.data.shift_type in ['opening', 'closing']
+        && request.resource.data.status in ['open', 'pending_signatures', 'submitted', 'missed_cleanup'];
+    }
+
+    // Helper function to check if task data matches expected schema
+    function isValidTask() {
+      return request.resource.data.keys().hasAll(['task_id', 'task_name', 'category', 'is_completed'])
+        && request.resource.data.task_id is string
+        && request.resource.data.is_completed is bool;
+    }
+
+    // 1. Employees collection rules
+    match /employees/{employeeId} {
+      allow read: if true;
+      allow create, update: if isValidEmployee();
+      allow delete: if true;
+    }
+
+    // 2. Chore Templates collection rules
+    match /chore_templates/{templateId} {
+      allow read: if true;
+      allow create, update: if isValidChoreTemplate();
+      allow delete: if true;
+    }
+
+    // 3. Slow Chores collection rules
+    match /slow_chores/{choreId} {
+      allow read: if true;
+      allow create, update: if isValidSlowChore();
+      allow delete: if true;
+    }
+
+    // 4. Active Shifts collection rules
+    match /active_shifts/{shiftId} {
+      allow read: if true;
+      allow create, update: if isValidShift();
+      allow delete: if true;
+      
+      match /tasks/{taskId} {
+        allow read: if true;
+        allow create, update: if isValidTask();
+        allow delete: if true;
+      }
+    }
+
+    // Default block for any other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
