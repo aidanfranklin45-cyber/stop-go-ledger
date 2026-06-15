@@ -155,22 +155,28 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
     }
   };
 
-  const formatTime = (isoString) => {
-    if (!isoString) return "";
-    try {
-      return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return "";
+  const parseDate = (val) => {
+    if (!val) return null;
+    if (typeof val === 'object' && typeof val.toDate === 'function') {
+      return val.toDate();
     }
+    if (typeof val === 'object' && val.seconds !== undefined) {
+      return new Date(val.seconds * 1000 + (val.nanoseconds || 0) / 1000000);
+    }
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const formatTime = (isoString) => {
+    const d = parseDate(isoString);
+    if (!d) return "";
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDateTime = (isoString) => {
-    if (!isoString) return "";
-    try {
-      return new Date(isoString).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-    } catch {
-      return "";
-    }
+    const d = parseDate(isoString);
+    if (!d) return "";
+    return d.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
   };
 
   // Group task details by category

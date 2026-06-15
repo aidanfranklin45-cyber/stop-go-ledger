@@ -214,10 +214,22 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
     }
   };
 
+  const parseDate = (val) => {
+    if (!val) return null;
+    if (typeof val === 'object' && typeof val.toDate === 'function') return val.toDate();
+    if (typeof val === 'object' && val.seconds !== undefined) {
+      return new Date(val.seconds * 1000 + (val.nanoseconds || 0) / 1000000);
+    }
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
   // Helper: check if due
   const isDue = (chore) => {
     if (!chore.last_completed_at) return true;
-    const elapsedMs = Date.now() - new Date(chore.last_completed_at).getTime();
+    const d = parseDate(chore.last_completed_at);
+    if (!d) return true;
+    const elapsedMs = Date.now() - d.getTime();
     const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24);
     return elapsedDays >= chore.frequency_days;
   };
@@ -225,8 +237,10 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
   // Helper: calculate time remaining or overdue
   const getScheduleLabel = (chore) => {
     if (!chore.last_completed_at) return "Never completed (Needs Attention)";
+    const d = parseDate(chore.last_completed_at);
+    if (!d) return "Never completed (Needs Attention)";
     
-    const nextDueTime = new Date(chore.last_completed_at).getTime() + (chore.frequency_days * 24 * 60 * 60 * 1000);
+    const nextDueTime = d.getTime() + (chore.frequency_days * 24 * 60 * 60 * 1000);
     const diffMs = nextDueTime - Date.now();
     
     if (diffMs <= 0) {
@@ -352,7 +366,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
                         {chore.last_completed_at && (
                           <>
                             <span>•</span>
-                            <span>Last by {chore.last_completed_by_name} ({new Date(chore.last_completed_at).toLocaleDateString()})</span>
+                             <span>Last by {chore.last_completed_by_name} ({parseDate(chore.last_completed_at) ? parseDate(chore.last_completed_at).toLocaleDateString() : ''})</span>
                           </>
                         )}
                       </div>
@@ -413,7 +427,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
                         {chore.last_completed_at && (
                           <>
                             <span>•</span>
-                            <span>Last: {chore.last_completed_by_name} ({new Date(chore.last_completed_at).toLocaleDateString()})</span>
+                             <span>Last: {chore.last_completed_by_name} ({parseDate(chore.last_completed_at) ? parseDate(chore.last_completed_at).toLocaleDateString() : ''})</span>
                           </>
                         )}
                       </div>

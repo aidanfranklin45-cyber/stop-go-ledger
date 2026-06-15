@@ -98,10 +98,24 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
   // --- Calculations ---
 
   // Date parsing utility to safely handle Firestore Timestamps and ISO strings
-  const parseTime = (val) => {
+  const parseDate = (val) => {
     if (!val) return null;
-    if (typeof val.toDate === 'function') return val.toDate().getTime();
-    return new Date(val).getTime();
+    if (typeof val === 'object' && typeof val.toDate === 'function') return val.toDate();
+    if (typeof val === 'object' && val.seconds !== undefined) {
+      return new Date(val.seconds * 1000 + (val.nanoseconds || 0) / 1000000);
+    }
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const parseTime = (val) => {
+    const d = parseDate(val);
+    return d ? d.getTime() : null;
+  };
+
+  const formatSubmittedTime = (val) => {
+    const d = parseDate(val);
+    return d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   };
 
   // 1. Overall Completion Rate
@@ -681,7 +695,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                             {s.till_status === 'balanced' ? '$0.00' : s.till_status === 'over' ? `+$${amount.toFixed(2)}` : `-$${amount.toFixed(2)}`}
                           </td>
                           <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>
-                            {s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Auto-archived'}
+                            {s.submitted_at ? formatSubmittedTime(s.submitted_at) : 'Auto-archived'}
                           </td>
                         </tr>
                       );
