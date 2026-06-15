@@ -493,33 +493,6 @@ function App() {
             </span>
           )}
 
-          {/* Database indicator */}
-          <div 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              fontSize: '0.75rem',
-              color: isLive ? 'var(--accent-green)' : 'var(--accent-amber)',
-              background: isLive ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
-              padding: '6px 12px',
-              borderRadius: '9999px',
-              border: `1px solid ${isLive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
-            }}
-          >
-            <Server size={12} />
-            {isLive ? 'Firestore Live' : 'LocalStorage Mock'}
-          </div>
-
-          {/* Developer Control toggle */}
-          <button 
-            className="btn btn-secondary" 
-            onClick={() => setIsDevOpen(true)}
-            style={{ padding: '8px', borderRadius: '50%' }}
-            aria-label="Settings panel"
-          >
-            <Settings size={18} />
-          </button>
         </div>
       </header>
 
@@ -616,18 +589,48 @@ function App() {
                     Access store checklists archives, performance analytics logs, and templates rosters management.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={() => {
-                    setIsManagerAuthenticated(false);
-                    setCurrentTab('dashboard');
-                  }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px' }}
-                >
-                  <LogOut size={16} />
-                  <span>Lock Panel</span>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {/* Database indicator */}
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      fontSize: '0.75rem',
+                      color: isLive ? 'var(--accent-green)' : 'var(--accent-amber)',
+                      background: isLive ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                      padding: '6px 12px',
+                      borderRadius: '9999px',
+                      border: `1px solid ${isLive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
+                    }}
+                  >
+                    <Server size={12} />
+                    {isLive ? 'Firestore Live' : 'LocalStorage Mock'}
+                  </div>
+
+                  {/* Settings toggle */}
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={() => setIsDevOpen(true)}
+                    style={{ padding: '8px', borderRadius: '50%' }}
+                    aria-label="Settings panel"
+                  >
+                    <Settings size={18} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={() => {
+                      setIsManagerAuthenticated(false);
+                      setCurrentTab('dashboard');
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px' }}
+                  >
+                    <LogOut size={16} />
+                    <span>Lock Panel</span>
+                  </button>
+                </div>
               </div>
 
               <div style={{ 
