@@ -5,20 +5,9 @@ const DevControlPanel = ({
   onCronSimulate,
   onSeedTestScenario,
   isLive = false,
-  firebaseConfig = null,
-  onSaveConfig,
-  onClearConfig,
   isOpen = false,
   onClose
 }) => {
-  const [inputs, setInputs] = useState({
-    apiKey: "",
-    authDomain: "",
-    projectId: "",
-    storageBucket: "",
-    messagingSenderId: "",
-    appId: ""
-  });
   const [consoleLogs, setConsoleLogs] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState(() => {
@@ -65,50 +54,6 @@ const DevControlPanel = ({
     } finally {
       setIsSendingTest(false);
     }
-  };
-
-  // Sync inputs with config if it changes
-  useEffect(() => {
-    if (firebaseConfig) {
-      setInputs({
-        apiKey: firebaseConfig.apiKey || "",
-        authDomain: firebaseConfig.authDomain || "",
-        projectId: firebaseConfig.projectId || "",
-        storageBucket: firebaseConfig.storageBucket || "",
-        messagingSenderId: firebaseConfig.messagingSenderId || "",
-        appId: firebaseConfig.appId || ""
-      });
-    } else {
-      setInputs({
-        apiKey: "",
-        authDomain: "",
-        projectId: "",
-        storageBucket: "",
-        messagingSenderId: "",
-        appId: ""
-      });
-    }
-  }, [firebaseConfig]);
-
-  const handleInputChange = (field, val) => {
-    setInputs(prev => ({ ...prev, [field]: val }));
-  };
-
-  const handleSave = (e) => {
-    e.preventDefault();
-    onSaveConfig(inputs);
-  };
-
-  const handleClear = () => {
-    onClearConfig();
-    setInputs({
-      apiKey: "",
-      authDomain: "",
-      projectId: "",
-      storageBucket: "",
-      messagingSenderId: "",
-      appId: ""
-    });
   };
 
   const handleCronSimulate = async () => {
@@ -188,103 +133,6 @@ const DevControlPanel = ({
             </span>
           </div>
         </div>
-      </div>
-
-      {/* Firebase Configurations */}
-      <div>
-        <h4 
-          style={{ 
-            fontFamily: 'var(--font-display)', 
-            fontWeight: 500, 
-            fontSize: '1rem',
-            color: 'var(--text-primary)',
-            marginBottom: '12px'
-          }}
-        >
-          Firestore Config
-        </h4>
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div className="form-group" style={{ marginBottom: '8px' }}>
-            <label style={{ fontSize: '0.7rem' }}>API Key</label>
-            <input
-              type="text"
-              className="form-input"
-              value={inputs.apiKey}
-              onChange={(e) => handleInputChange('apiKey', e.target.value)}
-              placeholder="AIzaSy..."
-            />
-          </div>
-          <div className="form-group" style={{ marginBottom: '8px' }}>
-            <label style={{ fontSize: '0.7rem' }}>Auth Domain</label>
-            <input
-              type="text"
-              className="form-input"
-              value={inputs.authDomain}
-              onChange={(e) => handleInputChange('authDomain', e.target.value)}
-              placeholder="stop-go-ledger.firebaseapp.com"
-            />
-          </div>
-          <div className="form-group" style={{ marginBottom: '8px' }}>
-            <label style={{ fontSize: '0.7rem' }}>Project ID</label>
-            <input
-              type="text"
-              className="form-input"
-              value={inputs.projectId}
-              onChange={(e) => handleInputChange('projectId', e.target.value)}
-              placeholder="stop-go-ledger"
-            />
-          </div>
-          <div className="form-group" style={{ marginBottom: '8px' }}>
-            <label style={{ fontSize: '0.7rem' }}>Storage Bucket</label>
-            <input
-              type="text"
-              className="form-input"
-              value={inputs.storageBucket}
-              onChange={(e) => handleInputChange('storageBucket', e.target.value)}
-              placeholder="stop-go-ledger.appspot.com"
-            />
-          </div>
-          <div className="form-group" style={{ marginBottom: '8px' }}>
-            <label style={{ fontSize: '0.7rem' }}>Messaging Sender ID</label>
-            <input
-              type="text"
-              className="form-input"
-              value={inputs.messagingSenderId}
-              onChange={(e) => handleInputChange('messagingSenderId', e.target.value)}
-              placeholder="1234567890"
-            />
-          </div>
-          <div className="form-group" style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '0.7rem' }}>App ID</label>
-            <input
-              type="text"
-              className="form-input"
-              value={inputs.appId}
-              onChange={(e) => handleInputChange('appId', e.target.value)}
-              placeholder="1:12345:web:abcdef"
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              type="submit" 
-              className="btn btn-primary"
-              style={{ flex: 1, padding: '8px 12px', fontSize: '0.85rem' }}
-            >
-              Save & Link
-            </button>
-            {(firebaseConfig || isLive) && (
-              <button
-                type="button"
-                className="btn btn-danger"
-                style={{ flex: 1, padding: '8px 12px', fontSize: '0.85rem' }}
-                onClick={handleClear}
-              >
-                Go Offline
-              </button>
-            )}
-          </div>
-        </form>
       </div>
 
       {/* Discord Webhook Setup */}

@@ -96,23 +96,27 @@ export async function hashPin(pin) {
 let db = null;
 let currentApp = null;
 
+export const firebaseConfig = {
+  apiKey: "YOUR_API_KEY_HERE",
+  authDomain: "stopandgochores.firebaseapp.com",
+  projectId: "stopandgochores",
+  storageBucket: "stopandgochores.firebasestorage.app",
+  messagingSenderId: "591590902699",
+  appId: "1:591590902699:web:1d8e5debbbcfa3f5b960ee",
+  measurementId: "G-H4Y2KZ0S4M"
+};
+
 export function getFirebaseConfig() {
-  const cfg = localStorage.getItem('stop_go_firebase_config');
-  return cfg ? JSON.parse(cfg) : null;
+  return firebaseConfig;
 }
 
 export function saveFirebaseConfig(config) {
-  localStorage.setItem('stop_go_firebase_config', JSON.stringify(config));
-  return initializeFirebaseConnection(config);
+  // Config is now hardcoded; this function is a no-op
+  return true;
 }
 
 export function clearFirebaseConfig() {
-  localStorage.removeItem('stop_go_firebase_config');
-  db = null;
-  if (currentApp) {
-    deleteApp(currentApp);
-    currentApp = null;
-  }
+  // Config is now hardcoded; this function is a no-op
 }
 
 export function isLiveMode() {
@@ -120,17 +124,18 @@ export function isLiveMode() {
 }
 
 export async function initializeFirebaseConnection(config = null) {
-  const activeConfig = config || getFirebaseConfig();
-  if (!activeConfig) {
+  // If running in a test environment, force mock mode (db = null)
+  if (typeof process !== 'undefined' && (process.env.VITEST || process.env.NODE_ENV === 'test')) {
     db = null;
     return false;
   }
+  
   try {
     const apps = getApps();
     if (apps.length > 0) {
       await deleteApp(apps[0]);
     }
-    currentApp = initializeApp(activeConfig);
+    currentApp = initializeApp(firebaseConfig);
     db = getFirestore(currentApp);
     return true;
   } catch (error) {
@@ -140,8 +145,10 @@ export async function initializeFirebaseConnection(config = null) {
   }
 }
 
-// Initialize on load if config exists
-initializeFirebaseConnection();
+// Initialize on load if not in test environment
+if (typeof process === 'undefined' || !(process.env.VITEST || process.env.NODE_ENV === 'test')) {
+  initializeFirebaseConnection();
+}
 
 // ==============================================================================
 // 4. MOCK DATABASE (LOCAL STORAGE STATE MANAGER)

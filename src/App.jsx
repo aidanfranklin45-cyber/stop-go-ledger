@@ -25,9 +25,6 @@ import {
   sendDiscordNotification,
   simulateDailyCleanup,
   isLiveMode,
-  getFirebaseConfig,
-  clearFirebaseConfig,
-  saveFirebaseConfig,
   updateShiftRoster,
   updateShiftStatus,
   seedTestScenario,
@@ -145,28 +142,7 @@ function App() {
     return () => { active = false; };
   }, [loadInitialData]);
 
-  // Handle live Firestore connection state updates
-  const handleSaveFirebaseConfig = async (config) => {
-    setLoading(true);
-    const success = await saveFirebaseConfig(config);
-    if (success) {
-      setIsLive(true);
-      setAppError(null);
-      await loadInitialData();
-    } else {
-      setIsLive(false);
-      setAppError("Invalid Firebase configuration coordinates.");
-    }
-    setLoading(false);
-  };
 
-  const handleClearFirebaseConfig = async () => {
-    setLoading(true);
-    clearFirebaseConfig();
-    setIsLive(false);
-    await loadInitialData();
-    setLoading(false);
-  };
 
   // --- State 01 Operations ---
   const handleSelectEmployeeForInit = (emp) => {
@@ -1116,9 +1092,6 @@ function App() {
         isOpen={isDevOpen}
         onClose={() => setIsDevOpen(false)}
         isLive={isLive}
-        firebaseConfig={getFirebaseConfig()}
-        onSaveConfig={handleSaveFirebaseConfig}
-        onClearConfig={handleClearFirebaseConfig}
         onCronSimulate={handleCronSimulation}
         onSeedTestScenario={handleSeedTestScenario}
       />
