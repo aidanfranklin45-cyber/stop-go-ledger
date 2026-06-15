@@ -487,11 +487,7 @@ function App() {
                 </span>
               )}
             </div>
-          ) : (
-            <span className="badge badge-open">
-              <Plus size={12} /> Setup Mode
-            </span>
-          )}
+          ) : null}
 
         </div>
       </header>
