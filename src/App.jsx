@@ -250,6 +250,47 @@ function App() {
   // --- State 02 Operations ---
   const handleTaskToggle = async (taskId, isCompleted, employeeId = null, employeeName = null) => {
     if (!currentShift) return;
+
+    // Store original state for potential rollback
+    const previousShift = currentShift;
+
+    // Calculate optimistic state
+    const currentTask = currentShift.tasks[taskId];
+    const wasCompleted = currentTask ? currentTask.is_completed : false;
+    
+    // If no change, do nothing
+    if (wasCompleted === isCompleted) return;
+
+    const completedDiff = isCompleted ? 1 : -1;
+    const optimisticCompletedCount = (currentShift.completed_count || 0) + completedDiff;
+
+    // Optimistically determine new status
+    let optimisticStatus = currentShift.status;
+    if (optimisticCompletedCount === currentShift.total_count && currentShift.status === 'open') {
+      optimisticStatus = 'pending_signatures';
+    } else if (optimisticCompletedCount < currentShift.total_count && currentShift.status === 'pending_signatures') {
+      optimisticStatus = 'open';
+    }
+
+    const optimisticShift = {
+      ...currentShift,
+      completed_count: optimisticCompletedCount,
+      status: optimisticStatus,
+      tasks: {
+        ...currentShift.tasks,
+        [taskId]: {
+          ...currentShift.tasks[taskId],
+          is_completed: isCompleted,
+          completed_by_id: employeeId,
+          completed_by_name: employeeName,
+          timestamp: isCompleted ? new Date().toISOString() : null
+        }
+      }
+    };
+
+    // Apply optimistic update immediately
+    setCurrentShift(optimisticShift);
+
     try {
       const updated = await updateTask(
         currentShift.shift_id,
@@ -258,12 +299,14 @@ function App() {
         employeeId,
         employeeName
       );
+      // Sync with final server state (ensuring Firestore serverTimestamp is formatted correctly)
       if (updated) {
         setCurrentShift(updated);
       }
     } catch (err) {
-      console.error(err);
-      setAppError("Failed to update task completion.");
+      console.error("Firestore update failed, rolling back:", err);
+      setCurrentShift(previousShift);
+      setAppError("Failed to save chore update to the database. Rolled back.");
     }
   };
 
