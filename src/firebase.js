@@ -136,13 +136,13 @@ let db = null;
 let currentApp = null;
 
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "stopandgochores.firebaseapp.com",
-  projectId: "stopandgochores",
-  storageBucket: "stopandgochores.firebasestorage.app",
-  messagingSenderId: "591590902699",
-  appId: "1:591590902699:web:1d8e5debbbcfa3f5b960ee",
-  measurementId: "G-H4Y2KZ0S4M"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 export function getFirebaseConfig() {
