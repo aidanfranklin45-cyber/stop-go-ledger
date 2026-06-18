@@ -937,22 +937,15 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
                               key={chore.id}
                               draggable
                               onDragStart={(e) => handleDragStart(e, chore.id, day)}
-                              style={{
-                                background: '#ffffff',
-                                border: '1px solid rgba(0,0,0,0.06)',
-                                borderRadius: '8px',
-                                padding: '8px',
-                                cursor: 'grab',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '4px'
-                              }}
+                              onClick={() => handleStartEdit(chore)}
+                              className="slow-chore-calendar-card"
+                              title="Click to edit, drag to reschedule"
                             >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px' }}>
                                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', textAlign: 'left', wordBreak: 'break-word', lineHeight: '1.2' }}>
                                   {chore.name}
                                 </span>
+                                <Edit size={10} style={{ color: 'var(--text-secondary)', opacity: 0.5, marginTop: '2px', flexShrink: 0 }} />
                               </div>
                               
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
