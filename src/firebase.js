@@ -109,10 +109,69 @@ export const CLOSING_TASKS = [
 ];
 
 export const DEFAULT_SLOW_CHORES = [
-  { id: 'SC_01', name: 'Clean Bathroom & Restock Supplies', frequency_days: 3, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_02', name: 'Check Parking Lot for Trash & Garbage', frequency_days: 2, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_03', name: 'Pull Weeds Outside Front Entrance', frequency_days: 7, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_04', name: 'Deep Clean Back Shelving & Racks', frequency_days: 5, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null }
+  { 
+    id: 'SC_01', 
+    name: 'Clean Bathroom & Restock Supplies', 
+    frequency_days: 3, 
+    last_completed_at: null, 
+    last_completed_by_id: null, 
+    last_completed_by_name: null,
+    days_of_week: ["Monday", "Thursday"],
+    labor_intensity: "high",
+    subtasks: [
+      { name: 'Scrub toilet bowl & seat', is_completed: false },
+      { name: 'Wipe down sink and mirror', is_completed: false },
+      { name: 'Empty bathroom trash bin', is_completed: false },
+      { name: 'Restock paper towels and toilet paper', is_completed: false }
+    ]
+  },
+  { 
+    id: 'SC_02', 
+    name: 'Check Parking Lot for Trash & Garbage', 
+    frequency_days: 2, 
+    last_completed_at: null, 
+    last_completed_by_id: null, 
+    last_completed_by_name: null,
+    days_of_week: ["Tuesday", "Friday", "Sunday"],
+    labor_intensity: "low",
+    subtasks: [
+      { name: 'Sweep storefront walkway', is_completed: false },
+      { name: 'Pick up litter around drive-thru lane', is_completed: false },
+      { name: 'Check dumpster area and close gate', is_completed: false },
+      { name: 'Empty outdoor trash cans if needed', is_completed: false }
+    ]
+  },
+  { 
+    id: 'SC_03', 
+    name: 'Pull Weeds Outside Front Entrance', 
+    frequency_days: 7, 
+    last_completed_at: null, 
+    last_completed_by_id: null, 
+    last_completed_by_name: null,
+    days_of_week: ["Wednesday"],
+    labor_intensity: "medium",
+    subtasks: [
+      { name: 'Clear weeds from front flowerbed', is_completed: false },
+      { name: 'Clear weeds between pavement cracks', is_completed: false },
+      { name: 'Sweep up loose soil/debris', is_completed: false }
+    ]
+  },
+  { 
+    id: 'SC_04', 
+    name: 'Deep Clean Back Shelving & Racks', 
+    frequency_days: 5, 
+    last_completed_at: null, 
+    last_completed_by_id: null, 
+    last_completed_by_name: null,
+    days_of_week: ["Saturday"],
+    labor_intensity: "high",
+    subtasks: [
+      { name: 'Remove items from shelves', is_completed: false },
+      { name: 'Wipe down shelving units with sanitizer', is_completed: false },
+      { name: 'Inspect expiration dates on stock', is_completed: false },
+      { name: 'Reorganize items neatly on shelves', is_completed: false }
+    ]
+  }
 ];
 
 // ==============================================================================
@@ -640,7 +699,10 @@ export async function addSlowChore(chore) {
   const data = {
     id: newId,
     name: chore.name,
-    frequency_days: Number(chore.frequency_days),
+    frequency_days: Number(chore.frequency_days) || 3,
+    days_of_week: chore.days_of_week || [],
+    labor_intensity: chore.labor_intensity || "medium",
+    subtasks: chore.subtasks || [],
     last_completed_at: null,
     last_completed_by_id: null,
     last_completed_by_name: null
@@ -664,8 +726,11 @@ export async function updateSlowChore(id, chore) {
   const list = await getSlowChores();
   const idx = list.findIndex(c => c.id === id);
   if (idx !== -1) {
-    list[idx].name = chore.name;
-    list[idx].frequency_days = Number(chore.frequency_days);
+    list[idx].name = chore.name !== undefined ? chore.name : list[idx].name;
+    list[idx].frequency_days = chore.frequency_days !== undefined ? Number(chore.frequency_days) : list[idx].frequency_days;
+    list[idx].days_of_week = chore.days_of_week !== undefined ? chore.days_of_week : list[idx].days_of_week;
+    list[idx].labor_intensity = chore.labor_intensity !== undefined ? chore.labor_intensity : list[idx].labor_intensity;
+    list[idx].subtasks = chore.subtasks !== undefined ? chore.subtasks : list[idx].subtasks;
     localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
     return list[idx];
   }
@@ -687,13 +752,16 @@ export async function deleteSlowChore(id) {
   return true;
 }
 
-export async function completeSlowChore(id, employeeId, employeeName) {
+export async function completeSlowChore(id, employeeId, employeeName, resetSubtasks = null) {
   if (isLiveMode()) {
     const payload = {
       last_completed_at: new Date().toISOString(),
       last_completed_by_id: employeeId,
       last_completed_by_name: employeeName
     };
+    if (resetSubtasks) {
+      payload.subtasks = resetSubtasks;
+    }
     const res = await fetch(`${API_URL}/slow-chores/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -710,6 +778,11 @@ export async function completeSlowChore(id, employeeId, employeeName) {
     list[idx].last_completed_at = nowStr;
     list[idx].last_completed_by_id = employeeId;
     list[idx].last_completed_by_name = employeeName;
+    if (resetSubtasks) {
+      list[idx].subtasks = resetSubtasks;
+    } else if (list[idx].subtasks) {
+      list[idx].subtasks = list[idx].subtasks.map(st => ({ ...st, is_completed: false }));
+    }
     localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
     return list[idx];
   }

@@ -119,10 +119,69 @@ const CLOSING_TASKS = [
 ];
 
 const DEFAULT_SLOW_CHORES = [
-  { id: 'SC_01', name: 'Clean Bathroom & Restock Supplies', frequency_days: 3, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_02', name: 'Check Parking Lot for Trash & Garbage', frequency_days: 2, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_03', name: 'Pull Weeds Outside Front Entrance', frequency_days: 7, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_04', name: 'Deep Clean Back Shelving & Racks', frequency_days: 5, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null }
+  { 
+    id: 'SC_01', 
+    name: 'Clean Bathroom & Restock Supplies', 
+    frequency_days: 3, 
+    last_completed_at: null, 
+    last_completed_by_id: null, 
+    last_completed_by_name: null,
+    days_of_week: ["Monday", "Thursday"],
+    labor_intensity: "high",
+    subtasks: [
+      { name: 'Scrub toilet bowl & seat', is_completed: false },
+      { name: 'Wipe down sink and mirror', is_completed: false },
+      { name: 'Empty bathroom trash bin', is_completed: false },
+      { name: 'Restock paper towels and toilet paper', is_completed: false }
+    ]
+  },
+  { 
+    id: 'SC_02', 
+    name: 'Check Parking Lot for Trash & Garbage', 
+    frequency_days: 2, 
+    last_completed_at: null, 
+    last_completed_by_id: null, 
+    last_completed_by_name: null,
+    days_of_week: ["Tuesday", "Friday", "Sunday"],
+    labor_intensity: "low",
+    subtasks: [
+      { name: 'Sweep storefront walkway', is_completed: false },
+      { name: 'Pick up litter around drive-thru lane', is_completed: false },
+      { name: 'Check dumpster area and close gate', is_completed: false },
+      { name: 'Empty outdoor trash cans if needed', is_completed: false }
+    ]
+  },
+  { 
+    id: 'SC_03', 
+    name: 'Pull Weeds Outside Front Entrance', 
+    frequency_days: 7, 
+    last_completed_at: null, 
+    last_completed_by_id: null, 
+    last_completed_by_name: null,
+    days_of_week: ["Wednesday"],
+    labor_intensity: "medium",
+    subtasks: [
+      { name: 'Clear weeds from front flowerbed', is_completed: false },
+      { name: 'Clear weeds between pavement cracks', is_completed: false },
+      { name: 'Sweep up loose soil/debris', is_completed: false }
+    ]
+  },
+  { 
+    id: 'SC_04', 
+    name: 'Deep Clean Back Shelving & Racks', 
+    frequency_days: 5, 
+    last_completed_at: null, 
+    last_completed_by_id: null, 
+    last_completed_by_name: null,
+    days_of_week: ["Saturday"],
+    labor_intensity: "high",
+    subtasks: [
+      { name: 'Remove items from shelves', is_completed: false },
+      { name: 'Wipe down shelving units with sanitizer', is_completed: false },
+      { name: 'Inspect expiration dates on stock', is_completed: false },
+      { name: 'Reorganize items neatly on shelves', is_completed: false }
+    ]
+  }
 ];
 
 // ==============================================================================

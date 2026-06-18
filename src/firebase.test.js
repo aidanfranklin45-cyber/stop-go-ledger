@@ -786,6 +786,10 @@ describe('Firebase Service Unit Tests', () => {
       expect(chores[0].name).toContain('Clean Bathroom');
       expect(chores[0].frequency_days).toBe(3);
       expect(chores[0].last_completed_at).toBeNull();
+      expect(chores[0].subtasks).toBeDefined();
+      expect(chores[0].subtasks.length).toBe(4);
+      expect(chores[0].labor_intensity).toBe('high');
+      expect(chores[0].days_of_week).toContain('Monday');
     });
 
     it('should support CRUD operations for slow chores', async () => {
@@ -794,12 +798,21 @@ describe('Firebase Service Unit Tests', () => {
       // 1. Add
       const newChore = await addSlowChore({
         name: 'Clean Sidewalk Windows',
-        frequency_days: 4
+        frequency_days: 4,
+        labor_intensity: 'low',
+        days_of_week: ['Wednesday', 'Saturday'],
+        subtasks: [
+          { name: 'Wash outer glass', is_completed: false },
+          { name: 'Dry with squeegee', is_completed: false }
+        ]
       });
       expect(newChore).toBeDefined();
       expect(newChore.id).toBeDefined();
       expect(newChore.name).toBe('Clean Sidewalk Windows');
       expect(newChore.frequency_days).toBe(4);
+      expect(newChore.labor_intensity).toBe('low');
+      expect(newChore.days_of_week).toContain('Wednesday');
+      expect(newChore.subtasks.length).toBe(2);
 
       let list = await getSlowChores();
       expect(list.length).toBe(5);
@@ -808,11 +821,23 @@ describe('Firebase Service Unit Tests', () => {
       // 2. Update
       const updated = await updateSlowChore(newChore.id, {
         name: 'Clean Sidewalk Windows (Deep)',
-        frequency_days: 6
+        frequency_days: 6,
+        labor_intensity: 'medium',
+        days_of_week: ['Friday'],
+        subtasks: [
+          { name: 'Wash outer glass', is_completed: true },
+          { name: 'Dry with squeegee', is_completed: true },
+          { name: 'Apply anti-rain coat', is_completed: false }
+        ]
       });
       expect(updated).toBeDefined();
       expect(updated.name).toBe('Clean Sidewalk Windows (Deep)');
       expect(updated.frequency_days).toBe(6);
+      expect(updated.labor_intensity).toBe('medium');
+      expect(updated.days_of_week).toContain('Friday');
+      expect(updated.days_of_week).not.toContain('Wednesday');
+      expect(updated.subtasks.length).toBe(3);
+      expect(updated.subtasks[0].is_completed).toBe(true);
 
       // 3. Delete
       const success = await deleteSlowChore(newChore.id);
@@ -822,21 +847,31 @@ describe('Firebase Service Unit Tests', () => {
       expect(list.find(c => c.id === newChore.id)).toBeUndefined();
     });
 
-    it('should complete a slow chore and reset its last_completed_at timestamp', async () => {
-      const { getSlowChores, completeSlowChore } = firebaseModule;
+    it('should complete a slow chore, reset its last_completed_at timestamp, and reset subtasks', async () => {
+      const { getSlowChores, completeSlowChore, updateSlowChore } = firebaseModule;
       const chores = await getSlowChores();
       const targetChore = chores[0];
 
       expect(targetChore.last_completed_at).toBeNull();
+      
+      // Set a subtask to completed to check if it resets
+      const subtasks = [...targetChore.subtasks];
+      subtasks[0] = { ...subtasks[0], is_completed: true };
+      await updateSlowChore(targetChore.id, { subtasks });
+
+      const updatedChore = (await getSlowChores()).find(c => c.id === targetChore.id);
+      expect(updatedChore.subtasks[0].is_completed).toBe(true);
 
       const completed = await completeSlowChore(targetChore.id, 'EMP_01', 'Alice Smith');
       expect(completed).toBeDefined();
       expect(completed.last_completed_at).not.toBeNull();
       expect(completed.last_completed_by_id).toBe('EMP_01');
       expect(completed.last_completed_by_name).toBe('Alice Smith');
+      expect(completed.subtasks[0].is_completed).toBe(false); // Reset check
 
       const refreshed = (await getSlowChores()).find(c => c.id === targetChore.id);
       expect(refreshed.last_completed_at).toBe(completed.last_completed_at);
+      expect(refreshed.subtasks[0].is_completed).toBe(false); // Reset check
     });
   });
 });
