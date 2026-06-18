@@ -465,8 +465,11 @@ function App() {
 
   // Calculate Progress Stats
   const getProgressPercent = () => {
-    if (!currentShift || currentShift.total_count === 0) return 0;
-    return Math.round((currentShift.completed_count / currentShift.total_count) * 100);
+    if (!currentShift || !currentShift.tasks) return 0;
+    const tasksArray = Object.values(currentShift.tasks);
+    if (tasksArray.length === 0) return 0;
+    const completed = tasksArray.filter(t => t.is_completed || t.completed).length;
+    return Math.round((completed / tasksArray.length) * 100);
   };
 
   return (
@@ -1100,7 +1103,7 @@ function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.85rem' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Completion Status</span>
                   <span style={{ fontWeight: '600' }}>
-                    {currentShift.completed_count} / {currentShift.total_count} Chores
+                    {currentShift.tasks ? Object.values(currentShift.tasks).filter(t => t.is_completed || t.completed).length : 0} / {currentShift.tasks ? Object.values(currentShift.tasks).length : 0} Chores
                   </span>
                 </div>
                 <div style={{ height: '8px', width: '100%', background: 'rgba(255,255,255,0.03)', borderRadius: '9999px', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
