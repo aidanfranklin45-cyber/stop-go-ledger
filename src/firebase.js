@@ -355,13 +355,23 @@ export async function updateEmployeePin(employeeId, newPin) {
   return false;
 }
 
+function enrichShiftCounts(shift) {
+  if (shift && shift.tasks) {
+    const tasksArray = Object.values(shift.tasks);
+    shift.total_count = tasksArray.length;
+    shift.completed_count = tasksArray.filter(t => t.is_completed || t.completed).length;
+  }
+  return shift;
+}
+
 // --- Shifts & Tasks ---
 export async function getActiveShift(shiftId) {
   if (isLiveMode()) {
     const res = await fetch(`${API_URL}/shifts/${shiftId}`);
     if (res.status === 404) return null;
     if (!res.ok) throw new Error("Failed to fetch active shift from API");
-    return await res.json();
+    const shift = await res.json();
+    return enrichShiftCounts(shift);
   }
   const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
   return shifts[shiftId] || null;
@@ -375,7 +385,8 @@ export async function startShift(shiftId, shiftType, date, activeTeamPids) {
       body: JSON.stringify({ shiftId, shiftType, date, activeTeamPids })
     });
     if (!res.ok) throw new Error("Failed to start shift via API");
-    return await res.json();
+    const shift = await res.json();
+    return enrichShiftCounts(shift);
   }
 
   const allTemplates = await getChoreTemplates();
@@ -561,6 +572,7 @@ export async function getSubmittedShifts() {
     const res = await fetch(`${API_URL}/shifts`);
     if (!res.ok) throw new Error("Failed to fetch submitted shifts from API");
     const list = await res.json();
+    list.forEach(s => enrichShiftCounts(s));
     return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
   }
 
@@ -1030,7 +1042,8 @@ export async function seedTestScenario(shiftId, shiftType, date) {
       body: JSON.stringify({ shiftType, date })
     });
     if (!res.ok) throw new Error("Failed to seed test scenario via API");
-    return await res.json();
+    const shift = await res.json();
+    return enrichShiftCounts(shift);
   }
 
   const activeTeamPids = ["EMP_01", "EMP_03", "EMP_04"];
