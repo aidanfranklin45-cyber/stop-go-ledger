@@ -253,8 +253,6 @@ app.get("/shifts/:id", async (req, res) => {
     if (!docSnap.exists) return res.status(404).json({ error: "Shift not found" });
 
     const shiftData = docSnap.data();
-    const tasksSnap = await db.collection("active_shifts").document(id).collection("tasks").get(); // Wait, in admin SDK it is db.collection().doc().collection()
-    // Wait, let's fix pathing for admin SDK subcollections: db.collection("active_shifts").doc(id).collection("tasks").get()
     const tasks = {};
     const subTasksSnap = await db.collection("active_shifts").doc(id).collection("tasks").get();
     subTasksSnap.forEach(tDoc => {
