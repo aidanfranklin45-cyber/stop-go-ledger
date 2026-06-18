@@ -158,10 +158,8 @@ export function clearFirebaseConfig() {
   // Config is now hardcoded; this function is a no-op
 }
 
-let liveDisabled = false;
-
 export function isLiveMode() {
-  return db !== null && !liveDisabled;
+  return db !== null;
 }
 
 function withTimeout(promise, ms = 4000) {
@@ -247,11 +245,8 @@ export async function getEmployees() {
       }
       return list;
     } catch (e) {
-      console.error("Firestore getEmployees error, falling back to mock:", e);
-      if (e.message === "Timeout") {
-        console.warn("Firestore connection timed out. Disabling live mode and falling back to mock.");
-        liveDisabled = true;
-      }
+      console.error("Firestore getEmployees error:", e);
+      throw e;
     }
   }
   
@@ -304,10 +299,7 @@ export async function getActiveShift(shiftId) {
       };
     } catch (e) {
       console.error("Firestore getActiveShift error:", e);
-      if (e.message === "Timeout") {
-        console.warn("Firestore connection timed out. Disabling live mode and falling back to mock.");
-        liveDisabled = true;
-      }
+      throw e;
     }
   }
 
@@ -620,6 +612,27 @@ export async function submitShiftSignatures(shiftId, signatures, tillReport = nu
     return shift;
   }
   return null;
+}
+
+export async function sendDiscordErrorNotification(errorMessage, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    const payload = {
+      embeds: [{
+        title: "🚨 STOP & GO LEDGER - SYSTEM ERROR 🚨",
+        description: `An error was encountered in the Stop & Go Ledger application:\n\n\`\`\`\n${errorMessage}\n\`\`\`\n\nPlease check the Google Cloud Console / Firebase Console immediately.`,
+        color: 15158332, // Red
+        timestamp: new Date().toISOString()
+      }]
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error("Failed to send Discord error notification:", err);
+  }
 }
 
 export async function sendDiscordNotification(shift, webhookUrl) {

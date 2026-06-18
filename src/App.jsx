@@ -29,7 +29,8 @@ import {
   updateShiftStatus,
   seedTestScenario,
   sendDiscordShiftStarted,
-  sendDiscordShiftArchived
+  sendDiscordShiftArchived,
+  sendDiscordErrorNotification
 } from './firebase';
 
 import PinNumpad from './components/PinNumpad';
@@ -49,6 +50,7 @@ function App() {
   const [isDevOpen, setIsDevOpen] = useState(false);
   const [appError, setAppError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hasConnectionError, setHasConnectionError] = useState(false);
   const [currentTab, setCurrentTab] = useState('dashboard');
 
   // --- Database state ---
@@ -123,7 +125,15 @@ function App() {
       }
     } catch (err) {
       console.error(err);
-      setAppError("Failed to connect to data service.");
+      if (isLiveMode()) {
+        setHasConnectionError(true);
+        const webhookUrl = localStorage.getItem('stop_go_discord_webhook_url');
+        if (webhookUrl) {
+          sendDiscordErrorNotification(err.message || String(err), webhookUrl);
+        }
+      } else {
+        setAppError("Failed to connect to data service.");
+      }
     } finally {
       setLoading(false);
     }
@@ -547,6 +557,23 @@ function App() {
           <div style={{ width: '40px', height: '40px', border: '3px solid var(--glass-border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
           <p style={{ color: 'var(--text-secondary)' }}>Synchronizing Ledger State...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      ) : hasConnectionError ? (
+        <div className="glass-panel max-w-md mx-auto w-full text-center p-8 animate-fade-in" style={{ marginTop: '40px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.15)', color: 'var(--accent-red)', padding: '16px', borderRadius: '50%' }}>
+              <AlertTriangle size={48} />
+            </div>
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.5rem', color: 'var(--text-primary)', marginBottom: '8px' }}>
+            Technical Difficulties
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '24px' }}>
+            We are currently experiencing connection difficulties with the live database service. An automated alert has been dispatched to the administrator.
+          </p>
+          <div style={{ padding: '12px', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            Please try disabling any aggressive ad-blockers or privacy extensions for this domain and refresh the page.
+          </div>
         </div>
       ) : currentTab === 'manager_access' ? (
         !isManagerAuthenticated ? (
