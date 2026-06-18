@@ -563,18 +563,6 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
                       <div>
                         <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>{chore.name}</h4>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                          <span 
-                            className="badge" 
-                            style={{ 
-                              fontSize: '0.65rem',
-                              background: chore.labor_intensity === 'high' ? 'var(--accent-red-glow)' : chore.labor_intensity === 'low' ? 'var(--accent-green-glow)' : 'var(--primary-glow)',
-                              color: chore.labor_intensity === 'high' ? 'var(--accent-red)' : chore.labor_intensity === 'low' ? 'var(--accent-green)' : 'var(--primary)',
-                              fontWeight: 600
-                            }}
-                          >
-                            {chore.labor_intensity ? chore.labor_intensity.toUpperCase() : 'MEDIUM'} INTENSITY
-                          </span>
-                          <span>•</span>
                           <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>{getScheduleLabel(chore)}</span>
                           
                           {totalSubtasksCount > 0 && (
@@ -645,18 +633,6 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
                     <div>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>{chore.name}</h4>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                        <span 
-                          className="badge" 
-                          style={{ 
-                            fontSize: '0.6rem',
-                            background: chore.labor_intensity === 'high' ? 'var(--accent-red-glow)' : chore.labor_intensity === 'low' ? 'var(--accent-green-glow)' : 'var(--primary-glow)',
-                            color: chore.labor_intensity === 'high' ? 'var(--accent-red)' : chore.labor_intensity === 'low' ? 'var(--accent-green)' : 'var(--primary)',
-                            fontWeight: 600
-                          }}
-                        >
-                          {chore.labor_intensity ? chore.labor_intensity.toUpperCase() : 'MEDIUM'}
-                        </span>
-                        <span>•</span>
                         <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{getScheduleLabel(chore)}</span>
                         {chore.subtasks && chore.subtasks.length > 0 && (
                           <>
@@ -692,9 +668,6 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
           <div className="glass-panel animate-fade-in" style={{ padding: '24px', maxWidth: '450px', width: '100%', background: '#ffffff', color: 'var(--text-primary)', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '10px' }}>
               <div>
-                <span className="badge" style={{ fontSize: '0.6rem', marginBottom: '4px', display: 'inline-block', background: completingChore.labor_intensity === 'high' ? 'var(--accent-red-glow)' : completingChore.labor_intensity === 'low' ? 'var(--accent-green-glow)' : 'var(--primary-glow)', color: completingChore.labor_intensity === 'high' ? 'var(--accent-red)' : completingChore.labor_intensity === 'low' ? 'var(--accent-green)' : 'var(--primary)', fontWeight: 700 }}>
-                  {completingChore.labor_intensity ? completingChore.labor_intensity.toUpperCase() : 'MEDIUM'} INTENSITY
-                </span>
                 <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Record Chore Completion</h3>
               </div>
               <button 
