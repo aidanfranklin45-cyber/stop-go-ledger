@@ -80,7 +80,9 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
         }
       }
 
-      setShiftsDetail(detailedList);
+      // Filter out in-progress shifts so analytics only aggregates submitted/archived checklists
+      const completedList = detailedList.filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
+      setShiftsDetail(completedList);
     } catch (err) {
       console.error("Failed to fetch analytics data:", err);
     } finally {

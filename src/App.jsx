@@ -642,7 +642,12 @@ function App() {
               defaultAuthenticated={true}
             />
           ) : managerSubView === 'history' ? (
-            <HistoryViewer onBack={() => setManagerSubView('menu')} defaultAuthenticated={true} />
+            <HistoryViewer 
+              onBack={() => setManagerSubView('menu')} 
+              defaultAuthenticated={true} 
+              currentActiveShiftId={currentShift?.shift_id}
+              onActiveShiftDeleted={handleResetShift}
+            />
           ) : managerSubView === 'chores_manager' ? (
             <ChoreManager onBack={() => setManagerSubView('menu')} defaultAuthenticated={true} />
           ) : managerSubView === 'staff_manager' ? (

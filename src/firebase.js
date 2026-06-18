@@ -561,12 +561,11 @@ export async function getSubmittedShifts() {
     const res = await fetch(`${API_URL}/shifts`);
     if (!res.ok) throw new Error("Failed to fetch submitted shifts from API");
     const list = await res.json();
-    const filtered = list.filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
-    return filtered.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
+    return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
   }
 
   const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  const list = Object.values(shifts).filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
+  const list = Object.values(shifts);
   return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
 }
 

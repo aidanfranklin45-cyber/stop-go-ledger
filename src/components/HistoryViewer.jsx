@@ -17,7 +17,7 @@ import {
 import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift, sendDiscordShiftDeleted } from '../firebase';
 import PinNumpad from './PinNumpad';
 
-const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
+const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onActiveShiftDeleted }) => {
   const [shifts, setShifts] = useState([]);
   const [selectedShiftId, setSelectedShiftId] = useState(null);
   const [selectedShift, setSelectedShift] = useState(null);
@@ -110,7 +110,12 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
     try {
       const isValid = await validateEmployeePin(selectedManagerId, pin);
       if (isValid) {
-        if (window.confirm(`Are you sure you want to permanently delete the sealed shift submission for ${selectedShift.date} (${selectedShift.shift_type})? This action cannot be undone.`)) {
+        const isSealed = selectedShift.status === 'submitted' || selectedShift.status === 'missed_cleanup';
+        const confirmMessage = isSealed
+          ? `Are you sure you want to permanently delete the sealed shift submission for ${selectedShift.date} (${selectedShift.shift_type})? This action cannot be undone.`
+          : `Are you sure you want to permanently delete the in-progress shift checklist for ${selectedShift.date} (${selectedShift.shift_type})? This will force the team to start the shift over from scratch.`;
+
+        if (window.confirm(confirmMessage)) {
           setLoadingDetail(true);
           const shiftDate = selectedShift.date;
           const shiftType = selectedShift.shift_type;
@@ -119,6 +124,9 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
             const webhookUrl = localStorage.getItem('stop_go_discord_webhook_url');
             if (webhookUrl) {
               await sendDiscordShiftDeleted(shiftDate, shiftType, webhookUrl);
+            }
+            if (onActiveShiftDeleted && selectedShift.shift_id === currentActiveShiftId) {
+              onActiveShiftDeleted();
             }
             setShowPinGate(false);
             setSelectedManagerId(null);
@@ -286,7 +294,6 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', flexGrow: 1, paddingRight: '4px' }}>
             {shifts.map(s => {
               const isSelected = s.shift_id === selectedShiftId;
-              const isMissed = s.status === 'missed_cleanup';
               const progress = s.total_count > 0 ? Math.round((s.completed_count / s.total_count) * 100) : 0;
               return (
                 <button
@@ -320,10 +327,17 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                     <span>Progress: {s.completed_count}/{s.total_count} ({progress}%)</span>
                     
-                    {isMissed ? (
+                    {s.status === 'missed_cleanup' && (
                       <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>Missed</span>
-                    ) : (
+                    )}
+                    {s.status === 'submitted' && (
                       <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>Sealed</span>
+                    )}
+                    {s.status === 'open' && (
+                      <span style={{ color: 'var(--accent-amber)', fontWeight: 600 }}>In Progress</span>
+                    )}
+                    {s.status === 'pending_signatures' && (
+                      <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Pending</span>
                     )}
                   </div>
 
@@ -365,7 +379,7 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
               Manager Verification Required
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
-              Please enter a manager authorization PIN to delete the sealed shift submission.
+              Please enter a manager authorization PIN to delete the {(selectedShift.status === 'submitted' || selectedShift.status === 'missed_cleanup') ? 'sealed shift submission' : 'in-progress shift checklist'}.
             </p>
 
             {selectedManagerId === null ? (
@@ -451,7 +465,7 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
 
               <div>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>Authentication Status</span>
-                {selectedShift.status === 'missed_cleanup' ? (
+                {selectedShift.status === 'missed_cleanup' && (
                   <div>
                     <span style={{ color: 'var(--accent-red)', fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <AlertTriangle size={14} /> Missed Cleanup
@@ -460,13 +474,34 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
                       Auto-archived: {formatDateTime(selectedShift.cleaned_up_at)}
                     </span>
                   </div>
-                ) : (
+                )}
+                {selectedShift.status === 'submitted' && (
                   <div>
                     <span style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <CheckCircle2 size={14} /> Submitted & Sealed
                     </span>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                       Time: {formatDateTime(selectedShift.submitted_at)}
+                    </span>
+                  </div>
+                )}
+                {selectedShift.status === 'open' && (
+                  <div>
+                    <span style={{ color: 'var(--accent-amber)', fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={14} /> In Progress
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      Started: {formatDateTime(selectedShift.initialized_at || selectedShift.created_at)}
+                    </span>
+                  </div>
+                )}
+                {selectedShift.status === 'pending_signatures' && (
+                  <div>
+                    <span style={{ color: 'var(--primary)', fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <ShieldCheck size={14} /> Pending Signatures
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      Started: {formatDateTime(selectedShift.initialized_at || selectedShift.created_at)}
                     </span>
                   </div>
                 )}
@@ -492,7 +527,7 @@ const HistoryViewer = ({ onBack, defaultAuthenticated }) => {
                   onClick={handleStartDeleteShift}
                 >
                   <Trash2 size={14} />
-                  <span>Delete Submission</span>
+                  <span>{(selectedShift.status === 'submitted' || selectedShift.status === 'missed_cleanup') ? 'Delete Submission' : 'Delete Active Shift'}</span>
                 </button>
               </div>
             </div>

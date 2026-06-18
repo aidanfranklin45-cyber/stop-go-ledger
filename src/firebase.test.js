@@ -550,17 +550,18 @@ describe('Firebase Service Unit Tests', () => {
       expect(fetched.shift_type).toBe("closing");
     });
 
-    it('should return submitted shifts sorted descending', async () => {
+    it('should return all shifts including in-progress ones sorted descending', async () => {
       const { startShift, submitShiftSignatures, getSubmittedShifts } = firebaseModule;
       
       await startShift('shift_hist_01', 'opening', '2026-06-11', ['EMP_01']);
       await startShift('shift_hist_02', 'closing', '2026-06-12', ['EMP_01']);
       
       await submitShiftSignatures('shift_hist_01', [{ name: "Alice" }]);
-      await submitShiftSignatures('shift_hist_02', [{ name: "Bob" }]);
+      // Leave shift_hist_02 as open (in-progress)
 
       const history = await getSubmittedShifts();
       expect(history.length).toBe(2);
+      expect(history.find(h => h.shift_id === 'shift_hist_02').status).toBe('open');
       expect(history[0].shift_id).toBe('shift_hist_02');
       expect(history[1].shift_id).toBe('shift_hist_01');
     });
