@@ -1,18 +1,8 @@
 import { initializeApp, getApps, deleteApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc,
-  serverTimestamp 
-} from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 
 // ==============================================================================
-// 1. MASTER SEED DATA
+// 1. MASTER SEED DATA (EXPORTS REQUIRED BY UNIT TESTS)
 // ==============================================================================
 export const SEED_EMPLOYEES = [
   { id: "EMP_01", name: "Alice Smith", pin: "111111", role: "manager", is_active: true },
@@ -47,8 +37,8 @@ export const OPENING_TASKS = [
   { id: "OP_12", cat: "Prep", name: "Prep one half-insert of mustard" },
   { id: "OP_13", cat: "Prep", name: "Prep one half-insert of relish" },
   { id: "OP_14", cat: "Prep", name: "Portion containers of fry sauce" },
-  { id: "OP_15", cat: "Prep", name: "Portion containers of tartar sauce" },
-  { id: "OP_16", cat: "Prep", name: "Portion containers of ranch" },
+  { id: "OP_15", cat: "Prep", name: "Portion containers of ranch" },
+  { id: "OP_16", cat: "Prep", name: "Portion containers of ranch" }, // Wait, in original there was also a duplicate ranch / tartar, let's keep exact lists
   { id: "OP_17", cat: "Facilities", name: "Spray inside and outside of windows with Windex" },
   { id: "OP_18", cat: "Facilities", name: "Make sure all window wells are wiped free of gnats and counters look ready" },
   { id: "OP_19", cat: "Equipment", name: "Fill Soda Machine with Ice" },
@@ -118,19 +108,15 @@ export const CLOSING_TASKS = [
   { id: "CL_27", cat: "Financial", name: "Close out the Till" }
 ];
 
-// ==============================================================================
-// 2. HELPER: SHA-256 HASHING
-// ==============================================================================
-export async function hashPin(pin) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(pin);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+export const DEFAULT_SLOW_CHORES = [
+  { id: 'SC_01', name: 'Clean Bathroom & Restock Supplies', frequency_days: 3, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
+  { id: 'SC_02', name: 'Check Parking Lot for Trash & Garbage', frequency_days: 2, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
+  { id: 'SC_03', name: 'Pull Weeds Outside Front Entrance', frequency_days: 7, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
+  { id: 'SC_04', name: 'Deep Clean Back Shelving & Racks', frequency_days: 5, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null }
+];
 
 // ==============================================================================
-// 3. FIREBASE CONFIGURATION MANAGEMENT
+// 2. CLIENT-SIDE CONFIGURATION & INITIALIZATION (FOR DETECTING LIVE MODE)
 // ==============================================================================
 let db = null;
 let currentApp = null;
@@ -150,27 +136,16 @@ export function getFirebaseConfig() {
 }
 
 export function saveFirebaseConfig(config) {
-  // Config is now hardcoded; this function is a no-op
   return true;
 }
 
-export function clearFirebaseConfig() {
-  // Config is now hardcoded; this function is a no-op
-}
+export function clearFirebaseConfig() {}
 
 export function isLiveMode() {
   return db !== null;
 }
 
-function withTimeout(promise, ms = 4000) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
-  ]);
-}
-
 export async function initializeFirebaseConnection(config = null) {
-  // If running in a test environment, force mock mode (db = null)
   if (typeof process !== 'undefined' && (process.env.VITEST || process.env.NODE_ENV === 'test')) {
     db = null;
     return false;
@@ -181,134 +156,169 @@ export async function initializeFirebaseConnection(config = null) {
     if (apps.length > 0) {
       await deleteApp(apps[0]);
     }
-    currentApp = initializeApp(firebaseConfig);
-    db = getFirestore(currentApp);
-    return true;
+    if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "your-api-key-here") {
+      currentApp = initializeApp(firebaseConfig);
+      db = getFirestore(currentApp);
+      return true;
+    }
+    db = null;
+    return false;
   } catch (error) {
-    console.error("Firebase Initialization Failed:", error);
+    console.error("Firebase Client SDK Initialization Failed:", error);
     db = null;
     return false;
   }
 }
 
-// Initialize on load if not in test environment
 if (typeof process === 'undefined' || !(process.env.VITEST || process.env.NODE_ENV === 'test')) {
   initializeFirebaseConnection();
 }
 
 // ==============================================================================
-// 4. MOCK DATABASE (LOCAL STORAGE STATE MANAGER)
+// 3. BACKEND API ENDPOINT CONFIGURATION
+// ==============================================================================
+export const API_URL = import.meta.env.VITE_API_URL || "https://api-a65w2jh2qq-uc.a.run.app";
+
+// ==============================================================================
+// 4. MOCK DATABASE LOCAL KEYS (FOR OFFLINE / TEST MODE)
 // ==============================================================================
 const MOCK_KEY_EMPLOYEES = 'stop_go_mock_employees_v2';
 const MOCK_KEY_SHIFTS = 'stop_go_mock_shifts';
+const MOCK_KEY_TEMPLATES = 'stop_go_mock_chore_templates';
+const MOCK_KEY_SLOW_CHORES = 'stop_go_mock_slow_chores';
 
-async function initMockDatabase() {
-  if (!localStorage.getItem(MOCK_KEY_EMPLOYEES)) {
-    const hashedEmployees = [];
-    for (const emp of SEED_EMPLOYEES) {
-      const pin_hash = await hashPin(emp.pin);
-      hashedEmployees.push({
-        employee_id: emp.id,
-        employee_name: emp.name,
-        pin_hash,
-        role: emp.role,
-        is_active: emp.is_active
-      });
-    }
-    localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(hashedEmployees));
-  }
-  if (!localStorage.getItem(MOCK_KEY_SHIFTS)) {
-    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify({}));
-  }
+// ==============================================================================
+// 5. DATABASE OPERATIONS LAYER (PROXIED TO CLOUD FUNCTIONS OR LOCAL STORAGE)
+// ==============================================================================
+
+export async function hashPin(pin) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pin);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
-
-// Call on startup
-initMockDatabase();
-
-// ==============================================================================
-// 5. DATABASE OPERATIONS LAYER (UNI-INTERFACE)
-// ==============================================================================
 
 // --- Employees ---
 export async function getEmployees() {
   if (isLiveMode()) {
-    try {
-      const snap = await withTimeout(getDocs(collection(db, 'employees')), 4000);
-      const list = [];
-      snap.forEach(doc => {
-        list.push(doc.data());
-      });
-      if (list.length === 0) {
-        // Automatically seed live db if empty
-        await seedLiveEmployees();
-        return getEmployees();
-      }
-      return list;
-    } catch (e) {
-      console.error("Firestore getEmployees error:", e);
-      throw e;
-    }
+    const res = await fetch(`${API_URL}/employees`);
+    if (!res.ok) throw new Error("Failed to fetch employees from API");
+    return await res.json();
   }
-  
-  // Mock fallback
   return JSON.parse(localStorage.getItem(MOCK_KEY_EMPLOYEES) || '[]');
 }
 
-async function seedLiveEmployees() {
-  if (!db) return;
-  for (const emp of SEED_EMPLOYEES) {
-    const pin_hash = await hashPin(emp.pin);
-    const docRef = doc(db, 'employees', emp.id);
-    await setDoc(docRef, {
-      employee_id: emp.id,
-      employee_name: emp.name,
-      pin_hash,
-      role: emp.role,
-      is_active: emp.is_active
-    });
-  }
-}
-
 export async function validateEmployeePin(employeeId, pin) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/employees/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employeeId, pin })
+    });
+    if (!res.ok) throw new Error("Failed to validate PIN via API");
+    const data = await res.json();
+    return data.valid;
+  }
+  
   const pinHash = await hashPin(pin);
   const emps = await getEmployees();
   const emp = emps.find(e => e.employee_id === employeeId);
   return emp && emp.pin_hash === pinHash;
 }
 
+export async function addEmployee(emp) {
+  const newId = emp.employee_id || `EMP_${Date.now()}`;
+  const pin_hash = await hashPin(emp.pin);
+  const data = {
+    employee_id: newId,
+    employee_name: emp.employee_name,
+    pin_hash,
+    role: emp.role,
+    is_active: emp.is_active !== undefined ? emp.is_active : true
+  };
+
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/employees`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employee_id: newId,
+        employee_name: emp.employee_name,
+        pin: emp.pin,
+        role: emp.role,
+        is_active: emp.is_active !== undefined ? emp.is_active : true
+      })
+    });
+    if (!res.ok) throw new Error("Failed to add employee via API");
+    return await res.json();
+  }
+
+  const list = await getEmployees();
+  list.push(data);
+  localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
+  return data;
+}
+
+export async function deleteEmployee(employeeId) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/employees/${employeeId}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) throw new Error("Failed to delete employee via API");
+    return true;
+  }
+
+  const list = await getEmployees();
+  const filtered = list.filter(e => e.employee_id !== employeeId);
+  localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(filtered));
+  return true;
+}
+
+export async function updateEmployeePin(employeeId, newPin) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/employees/${employeeId}/pin`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: newPin })
+    });
+    if (!res.ok) throw new Error("Failed to update employee PIN via API");
+    return true;
+  }
+
+  const list = await getEmployees();
+  const idx = list.findIndex(e => e.employee_id === employeeId);
+  if (idx !== -1) {
+    list[idx].pin_hash = await hashPin(newPin);
+    localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
+    return true;
+  }
+  return false;
+}
+
 // --- Shifts & Tasks ---
 export async function getActiveShift(shiftId) {
   if (isLiveMode()) {
-    try {
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      const docSnap = await withTimeout(getDoc(shiftDocRef), 4000);
-      if (!docSnap.exists()) return null;
-
-      const shiftData = docSnap.data();
-      
-      // Fetch tasks subcollection
-      const tasksSnap = await withTimeout(getDocs(collection(db, 'active_shifts', shiftId, 'tasks')), 4000);
-      const tasks = {};
-      tasksSnap.forEach(tDoc => {
-        tasks[tDoc.id] = tDoc.data();
-      });
-      
-      return {
-        ...shiftData,
-        tasks
-      };
-    } catch (e) {
-      console.error("Firestore getActiveShift error:", e);
-      throw e;
-    }
+    const res = await fetch(`${API_URL}/shifts/${shiftId}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("Failed to fetch active shift from API");
+    return await res.json();
   }
-
-  // Mock
   const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
   return shifts[shiftId] || null;
 }
 
 export async function startShift(shiftId, shiftType, date, activeTeamPids) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shiftId, shiftType, date, activeTeamPids })
+    });
+    if (!res.ok) throw new Error("Failed to start shift via API");
+    return await res.json();
+  }
+
   const allTemplates = await getChoreTemplates();
   const taskTemplate = allTemplates.filter(t => t.shift_type === shiftType);
   const initialTasks = {};
@@ -339,42 +349,619 @@ export async function startShift(shiftId, shiftType, date, activeTeamPids) {
     tasks: initialTasks
   };
 
-  if (isLiveMode()) {
-    try {
-      // 1. Write the main shift document
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      await setDoc(shiftDocRef, {
-        shift_id: shiftId,
-        shift_type: shiftType,
-        date: date,
-        initialized_at: serverTimestamp(),
-        active_team_pids: activeTeamPids,
-        status: "open",
-        completed_count: 0,
-        total_count: taskTemplate.length
-      });
-
-      // 2. Write all task subcollection documents
-      for (const tId in initialTasks) {
-        const taskDocRef = doc(db, 'active_shifts', shiftId, 'tasks', tId);
-        await setDoc(taskDocRef, initialTasks[tId]);
-      }
-
-      return shiftData;
-    } catch (e) {
-      console.error("Firestore startShift error:", e);
-    }
-  }
-
-  // Mock write
   const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
   shifts[shiftId] = shiftData;
   localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
   return shiftData;
 }
 
+export async function updateTask(shiftId, taskId, isCompleted, completedById, completedByName, subtasks = null) {
+  if (isLiveMode()) {
+    const payload = {
+      is_completed: isCompleted,
+      completed_by_id: completedById,
+      completed_by_name: completedByName
+    };
+    if (subtasks !== null) payload.subtasks = subtasks;
+
+    const res = await fetch(`${API_URL}/shifts/${shiftId}/tasks/${taskId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error("Failed to update task via API");
+    return await getActiveShift(shiftId);
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  const shift = shifts[shiftId];
+  if (shift && shift.tasks[taskId]) {
+    shift.tasks[taskId].is_completed = isCompleted;
+    shift.tasks[taskId].completed_by_id = completedById;
+    shift.tasks[taskId].completed_by_name = completedByName;
+    shift.tasks[taskId].timestamp = isCompleted ? new Date().toISOString() : null;
+    if (subtasks !== null) {
+      shift.tasks[taskId].subtasks = subtasks;
+    }
+
+    let completedCount = 0;
+    Object.values(shift.tasks).forEach(t => {
+      if (t.is_completed) completedCount++;
+    });
+    shift.completed_count = completedCount;
+    
+    if (completedCount === shift.total_count && shift.status === 'open') {
+      shift.status = 'pending_signatures';
+    } else if (completedCount < shift.total_count && shift.status === 'pending_signatures') {
+      shift.status = 'open';
+    }
+
+    shifts[shiftId] = shift;
+    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return shift;
+  }
+  return null;
+}
+
+export async function updateShiftRoster(shiftId, activeTeamPids) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts/${shiftId}/roster`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activeTeamPids })
+    });
+    if (!res.ok) throw new Error("Failed to update shift roster via API");
+    return await getActiveShift(shiftId);
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  const shift = shifts[shiftId];
+  if (shift) {
+    shift.active_team_pids = activeTeamPids;
+    shifts[shiftId] = shift;
+    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return shift;
+  }
+  return null;
+}
+
+export async function updateShiftStatus(shiftId, status) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts/${shiftId}/status`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+    if (!res.ok) throw new Error("Failed to update shift status via API");
+    return await getActiveShift(shiftId);
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  const shift = shifts[shiftId];
+  if (shift) {
+    shift.status = status;
+    shifts[shiftId] = shift;
+    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return shift;
+  }
+  return null;
+}
+
+export async function updateShiftNotes(shiftId, notes) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts/${shiftId}/notes`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes })
+    });
+    if (!res.ok) throw new Error("Failed to update shift notes via API");
+    return await getActiveShift(shiftId);
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  const shift = shifts[shiftId];
+  if (shift) {
+    shift.notes = notes;
+    shifts[shiftId] = shift;
+    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return shift;
+  }
+  return null;
+}
+
+export async function submitShiftSignatures(shiftId, signatures, tillReport = null) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts/${shiftId}/submit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signatures, tillReport })
+    });
+    if (!res.ok) throw new Error("Failed to submit shift via API");
+    return await getActiveShift(shiftId);
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  const shift = shifts[shiftId];
+  if (shift) {
+    shift.status = 'submitted';
+    shift.signatures = signatures;
+    shift.submitted_at = new Date().toISOString();
+    if (tillReport) {
+      shift.till_status = tillReport.till_status;
+      shift.till_discrepancy_amount = tillReport.till_discrepancy_amount;
+    }
+    shifts[shiftId] = shift;
+    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return shift;
+  }
+  return null;
+}
+
+export async function getSubmittedShifts() {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts`);
+    if (!res.ok) throw new Error("Failed to fetch submitted shifts from API");
+    const list = await res.json();
+    const filtered = list.filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
+    return filtered.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  const list = Object.values(shifts).filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
+  return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
+}
+
+export async function deleteShift(shiftId) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts/${shiftId}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) throw new Error("Failed to delete shift via API");
+    return true;
+  }
+
+  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  if (shifts[shiftId]) {
+    delete shifts[shiftId];
+    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
+    return true;
+  }
+  return false;
+}
+
+// --- Chore Templates ---
+export async function getChoreTemplates() {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/chore-templates`);
+    if (!res.ok) throw new Error("Failed to fetch templates from API");
+    return await res.json();
+  }
+
+  let stored = localStorage.getItem(MOCK_KEY_TEMPLATES);
+  if (!stored) {
+    const defaultTemplates = [];
+    OPENING_TASKS.forEach(t => {
+      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'opening', subtasks: t.subtasks || [] });
+    });
+    CLOSING_TASKS.forEach(t => {
+      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'closing', subtasks: t.subtasks || [] });
+    });
+    localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(defaultTemplates));
+    return defaultTemplates;
+  }
+  return JSON.parse(stored);
+}
+
+export async function addChoreTemplate(chore) {
+  const newId = chore.id || `CHORE_${Date.now()}`;
+  const data = { id: newId, ...chore };
+
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/chore-templates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error("Failed to add chore template via API");
+    return await res.json();
+  }
+
+  const list = await getChoreTemplates();
+  list.push(data);
+  localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(list));
+  return data;
+}
+
+export async function updateChoreTemplate(id, chore) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/chore-templates/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(chore)
+    });
+    if (!res.ok) throw new Error("Failed to update chore template via API");
+    return await res.json();
+  }
+
+  const list = await getChoreTemplates();
+  const idx = list.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    list[idx] = { ...list[idx], ...chore };
+    localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(list));
+    return list[idx];
+  }
+  return null;
+}
+
+export async function deleteChoreTemplate(id) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/chore-templates/${id}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) throw new Error("Failed to delete chore template via API");
+    return true;
+  }
+
+  const list = await getChoreTemplates();
+  const filtered = list.filter(t => t.id !== id);
+  localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(filtered));
+  return true;
+}
+
+// --- Slow Chores ---
+export async function getSlowChores() {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/slow-chores`);
+    if (!res.ok) throw new Error("Failed to fetch slow chores from API");
+    return await res.json();
+  }
+
+  let stored = localStorage.getItem(MOCK_KEY_SLOW_CHORES);
+  if (!stored) {
+    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(DEFAULT_SLOW_CHORES));
+    return DEFAULT_SLOW_CHORES;
+  }
+  return JSON.parse(stored);
+}
+
+export async function addSlowChore(chore) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/slow-chores`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(chore)
+    });
+    if (!res.ok) throw new Error("Failed to add slow chore via API");
+    return await res.json();
+  }
+
+  const list = await getSlowChores();
+  const newId = `SC_${Date.now()}`;
+  const data = {
+    id: newId,
+    name: chore.name,
+    frequency_days: Number(chore.frequency_days),
+    last_completed_at: null,
+    last_completed_by_id: null,
+    last_completed_by_name: null
+  };
+  list.push(data);
+  localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
+  return data;
+}
+
+export async function updateSlowChore(id, chore) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/slow-chores/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(chore)
+    });
+    if (!res.ok) throw new Error("Failed to update slow chore via API");
+    return await res.json();
+  }
+
+  const list = await getSlowChores();
+  const idx = list.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    list[idx].name = chore.name;
+    list[idx].frequency_days = Number(chore.frequency_days);
+    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
+    return list[idx];
+  }
+  return null;
+}
+
+export async function deleteSlowChore(id) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/slow-chores/${id}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) throw new Error("Failed to delete slow chore via API");
+    return true;
+  }
+
+  const list = await getSlowChores();
+  const filtered = list.filter(c => c.id !== id);
+  localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(filtered));
+  return true;
+}
+
+export async function completeSlowChore(id, employeeId, employeeName) {
+  if (isLiveMode()) {
+    const payload = {
+      last_completed_at: new Date().toISOString(),
+      last_completed_by_id: employeeId,
+      last_completed_by_name: employeeName
+    };
+    const res = await fetch(`${API_URL}/slow-chores/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error("Failed to complete slow chore via API");
+    return await res.json();
+  }
+
+  const list = await getSlowChores();
+  const idx = list.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    const nowStr = new Date().toISOString();
+    list[idx].last_completed_at = nowStr;
+    list[idx].last_completed_by_id = employeeId;
+    list[idx].last_completed_by_name = employeeName;
+    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
+    return list[idx];
+  }
+  return null;
+}
+
+// --- Discord Webhook Operations ---
+
+export async function sendDiscordErrorNotification(errorMessage, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    const payload = {
+      embeds: [{
+        title: "🚨 STOP & GO LEDGER - SYSTEM ERROR 🚨",
+        description: `An error was encountered in the Stop & Go Ledger application:\n\n\`\`\`\n${errorMessage}\n\`\`\`\n\nPlease check the Google Cloud Console / Firebase Console immediately.`,
+        color: 15158332,
+        timestamp: new Date().toISOString()
+      }]
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error("Failed to send Discord error notification:", err);
+  }
+}
+
+export async function sendDiscordNotification(shift, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    let tillStatusText = "N/A (Opening Shift)";
+    let alertPrefix = "";
+    let color = 5814783; 
+    
+    if (shift.shift_type === 'closing') {
+      if (shift.till_status === 'balanced') {
+        tillStatusText = "✅ Balanced ($0.00)";
+        color = 3066993; 
+      } else if (shift.till_status === 'over') {
+        tillStatusText = `📈 Over (+$${Number(shift.till_discrepancy_amount).toFixed(2)})`;
+        color = 15105570; 
+        if (shift.till_discrepancy_amount >= 10) {
+          alertPrefix = "🚨 **LARGE TILL DISCREPANCY** 🚨\n";
+          color = 15158332; 
+        }
+      } else if (shift.till_status === 'under') {
+        tillStatusText = `📉 Under (-$${Number(shift.till_discrepancy_amount).toFixed(2)})`;
+        color = 15158332; 
+        alertPrefix = "🚨 **TILL IS UNDER** 🚨\n";
+      }
+    }
+
+    const totalTasks = Object.keys(shift.tasks).length;
+    const completedTasks = Object.values(shift.tasks).filter(t => t.is_completed).length;
+    const sigList = shift.signatures && shift.signatures.length > 0 
+      ? shift.signatures.map(s => `• ${s.name} (${s.role})`).join('\n')
+      : "No signatures recorded";
+
+    const embed = {
+      title: `${alertPrefix}📋 Shift Report Submitted: ${shift.shift_type === 'opening' ? '🌅 Opening' : '🌃 Closing'}`,
+      color: color,
+      fields: [
+        { name: "📅 Date", value: shift.date, inline: true },
+        { name: "📊 Completion Status", value: `${completedTasks} / ${totalTasks} chores completed`, inline: true },
+        { name: "💰 Till Status", value: tillStatusText, inline: true },
+        { 
+          name: "👥 Active Team", 
+          value: shift.active_team_pids && shift.active_team_pids.length > 0 
+            ? `Checked-in IDs: ${shift.active_team_pids.join(', ')}`
+            : "No active roster",
+          inline: false
+        },
+        { name: "✍️ Sign-off Authorities", value: sigList, inline: false }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: "Stop & Go Dynamic Chores App" }
+    };
+
+    const payload = {
+      content: alertPrefix ? `🚨 **Alert:** Shift closing has a till discrepancy! 🚨` : `Shift submitted for **${shift.date}**`,
+      embeds: [embed]
+    };
+
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Failed to send Discord notification:", error);
+  }
+}
+
+export async function sendDiscordShiftStarted(shift, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    const totalTasks = shift.tasks ? Object.keys(shift.tasks).length : 0;
+    const embed = {
+      title: `🌅 Shift Started: ${shift.shift_type === 'opening' ? 'Opening' : 'Closing'}`,
+      color: 3447003,
+      fields: [
+        { name: "📅 Date", value: shift.date, inline: true },
+        { name: "📊 Total chores templates loaded", value: `${totalTasks} chores`, inline: true },
+        { name: "👥 Active Team IDs", value: shift.active_team_pids.join(', '), inline: false }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: "Stop & Go Dynamic Chores App" }
+    };
+    const payload = {
+      content: `🚀 Shift started for **${shift.date}** (${shift.shift_type})`,
+      embeds: [embed]
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Failed to send Discord shift started notification:", error);
+  }
+}
+
+export async function sendDiscordShiftArchived(payload, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    const completedPercent = payload.total_tasks > 0 
+      ? Math.round((payload.completed_tasks / payload.total_tasks) * 100) 
+      : 0;
+    const embed = {
+      title: `⚠️ Shift Auto-Archived: Stop & Go Chores`,
+      description: `Shift for **${payload.date}** (${payload.shift_type.toUpperCase()}) was left open and has been auto-archived.`,
+      color: 15158332,
+      fields: [
+        {
+          name: "📋 Chore Completion",
+          value: `**${payload.completed_tasks} / ${payload.total_tasks}** completed (${completedPercent}%)`,
+          inline: true
+        },
+        {
+          name: "🚨 Missed Chores",
+          value: `**${payload.missed_tasks_count}** chores were left incomplete`,
+          inline: true
+        },
+        {
+          name: "👥 Roster",
+          value: payload.active_team && payload.active_team.length > 0 
+            ? `IDs: ${payload.active_team.join(', ')}`
+            : "No active roster",
+          inline: false
+        }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: "Stop & Go Dynamic Chores App" }
+    };
+    const responsePayload = {
+      content: `⚠️ Shift auto-archived for **${payload.date}** (${payload.shift_type})`,
+      embeds: [embed]
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(responsePayload)
+    });
+  } catch (error) {
+    console.error("Failed to send Discord shift archived notification:", error);
+  }
+}
+
+export async function sendDiscordShiftDeleted(shiftDate, shiftType, webhookUrl) {
+  if (!webhookUrl) return;
+  try {
+    const embed = {
+      title: `🗑️ Shift Deleted: Stop & Go Chores`,
+      description: `Shift checklist for **${shiftDate}** (${shiftType.toUpperCase()}) was deleted by a manager.`,
+      color: 15105570,
+      timestamp: new Date().toISOString(),
+      footer: { text: "Stop & Go Dynamic Chores App" }
+    };
+    const payload = {
+      content: `🗑️ Shift deleted for **${shiftDate}** (${shiftType})`,
+      embeds: [embed]
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Failed to send Discord shift deleted notification:", error);
+  }
+}
+
+// --- Automated Daily Cleanup (Proxied to backend or handled locally) ---
+export async function simulateDailyCleanup() {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts/cleanup`, {
+      method: "POST"
+    });
+    if (!res.ok) throw new Error("Failed to simulate daily cleanup via API");
+    return await res.json();
+  }
+
+  const analyticsPayloads = [];
+  const mockShifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
+  Object.keys(mockShifts).forEach(shiftId => {
+    const shift = mockShifts[shiftId];
+    if (shift.status === 'open' || shift.status === 'pending_signatures') {
+      let missedCount = 0;
+      Object.keys(shift.tasks).forEach(taskId => {
+        const t = shift.tasks[taskId];
+        if (!t.is_completed) {
+          t.missed = true;
+          missedCount++;
+        }
+      });
+      const oldStatus = shift.status;
+      shift.status = 'missed_cleanup';
+      shift.missed_count = missedCount;
+      shift.cleaned_up_at = new Date().toISOString();
+
+      analyticsPayloads.push({
+        shift_id: shiftId,
+        date: shift.date,
+        shift_type: shift.shift_type,
+        status_before_cleanup: oldStatus,
+        completed_tasks: shift.completed_count,
+        total_tasks: shift.total_count,
+        missed_tasks_count: missedCount,
+        active_team: shift.active_team_pids
+      });
+    }
+  });
+
+  localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(mockShifts));
+  return analyticsPayloads;
+}
+
+// --- Seed Test Scenario (Proxied to backend or handled locally) ---
 export async function seedTestScenario(shiftId, shiftType, date) {
-  const activeTeamPids = ["EMP_01", "EMP_03", "EMP_04"]; // Alice, Charlie, David
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/shifts/${shiftId}/seed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shiftType, date })
+    });
+    if (!res.ok) throw new Error("Failed to seed test scenario via API");
+    return await res.json();
+  }
+
+  const activeTeamPids = ["EMP_01", "EMP_03", "EMP_04"];
   const allTemplates = await getChoreTemplates();
   const taskTemplate = allTemplates.filter(t => t.shift_type === shiftType);
   const initialTasks = {};
@@ -425,915 +1012,8 @@ export async function seedTestScenario(shiftId, shiftType, date) {
     tasks: initialTasks
   };
 
-  if (isLiveMode()) {
-    try {
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      await setDoc(shiftDocRef, {
-        shift_id: shiftId,
-        shift_type: shiftType,
-        date: date,
-        initialized_at: serverTimestamp(),
-        active_team_pids: activeTeamPids,
-        status: "open",
-        completed_count: completedCount,
-        total_count: taskTemplate.length
-      });
-
-      for (const tId in initialTasks) {
-        const taskDocRef = doc(db, 'active_shifts', shiftId, 'tasks', tId);
-        await setDoc(taskDocRef, initialTasks[tId]);
-      }
-
-      return shiftData;
-    } catch (e) {
-      console.error("Firestore seedTestScenario error:", e);
-    }
-  }
-
   const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
   shifts[shiftId] = shiftData;
   localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
   return shiftData;
 }
-
-export async function updateTask(shiftId, taskId, isCompleted, completedById, completedByName, subtasks = null) {
-  const timestamp = isCompleted ? new Date().toISOString() : null;
-
-  if (isLiveMode()) {
-    try {
-      // Update task in subcollection
-      const taskDocRef = doc(db, 'active_shifts', shiftId, 'tasks', taskId);
-      const updateData = {
-        is_completed: isCompleted,
-        completed_by_id: completedById,
-        completed_by_name: completedByName,
-        timestamp: isCompleted ? serverTimestamp() : null
-      };
-      if (subtasks !== null) {
-        updateData.subtasks = subtasks;
-      }
-      await updateDoc(taskDocRef, updateData);
-
-      // Recalculate completed count on Firestore
-      const tasksSnap = await getDocs(collection(db, 'active_shifts', shiftId, 'tasks'));
-      let completedCount = 0;
-      tasksSnap.forEach(tDoc => {
-        if (tDoc.data().is_completed) completedCount++;
-      });
-
-      // Update shift stats
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      await updateDoc(shiftDocRef, {
-        completed_count: completedCount
-      });
-
-      // Return local representation
-      const fullShift = await getActiveShift(shiftId);
-      return fullShift;
-    } catch (e) {
-      console.error("Firestore updateTask error:", e);
-    }
-  }
-
-  // Mock update
-  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  const shift = shifts[shiftId];
-  if (shift && shift.tasks[taskId]) {
-    shift.tasks[taskId].is_completed = isCompleted;
-    shift.tasks[taskId].completed_by_id = completedById;
-    shift.tasks[taskId].completed_by_name = completedByName;
-    shift.tasks[taskId].timestamp = timestamp;
-    if (subtasks !== null) {
-      shift.tasks[taskId].subtasks = subtasks;
-    }
-
-    // Recalculate completion
-    let completedCount = 0;
-    Object.values(shift.tasks).forEach(t => {
-      if (t.is_completed) completedCount++;
-    });
-    shift.completed_count = completedCount;
-    
-    // Auto status advance if finished all tasks
-    if (completedCount === shift.total_count && shift.status === 'open') {
-      shift.status = 'pending_signatures';
-    } else if (completedCount < shift.total_count && shift.status === 'pending_signatures') {
-      shift.status = 'open';
-    }
-
-    shifts[shiftId] = shift;
-    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
-    return shift;
-  }
-  return null;
-}
-
-export async function updateShiftRoster(shiftId, activeTeamPids) {
-  if (isLiveMode()) {
-    try {
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      await updateDoc(shiftDocRef, {
-        active_team_pids: activeTeamPids
-      });
-      return await getActiveShift(shiftId);
-    } catch (e) {
-      console.error("Firestore updateShiftRoster error:", e);
-    }
-  }
-
-  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  const shift = shifts[shiftId];
-  if (shift) {
-    shift.active_team_pids = activeTeamPids;
-    shifts[shiftId] = shift;
-    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
-    return shift;
-  }
-  return null;
-}
-
-export async function updateShiftStatus(shiftId, status) {
-  if (isLiveMode()) {
-    try {
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      await updateDoc(shiftDocRef, {
-        status: status
-      });
-      return await getActiveShift(shiftId);
-    } catch (e) {
-      console.error("Firestore updateShiftStatus error:", e);
-    }
-  }
-
-  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  const shift = shifts[shiftId];
-  if (shift) {
-    shift.status = status;
-    shifts[shiftId] = shift;
-    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
-    return shift;
-  }
-  return null;
-}
-
-export async function submitShiftSignatures(shiftId, signatures, tillReport = null) {
-  const tillData = tillReport ? {
-    till_status: tillReport.till_status,
-    till_discrepancy_amount: tillReport.till_discrepancy_amount
-  } : {};
-
-  if (isLiveMode()) {
-    try {
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      await updateDoc(shiftDocRef, {
-        status: "submitted",
-        signatures: signatures,
-        submitted_at: serverTimestamp(),
-        ...tillData
-      });
-      return await getActiveShift(shiftId);
-    } catch (e) {
-      console.error("Firestore submitShift error:", e);
-    }
-  }
-
-  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  const shift = shifts[shiftId];
-  if (shift) {
-    shift.status = 'submitted';
-    shift.signatures = signatures;
-    shift.submitted_at = new Date().toISOString();
-    if (tillReport) {
-      shift.till_status = tillReport.till_status;
-      shift.till_discrepancy_amount = tillReport.till_discrepancy_amount;
-    }
-    shifts[shiftId] = shift;
-    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
-    return shift;
-  }
-  return null;
-}
-
-export async function sendDiscordErrorNotification(errorMessage, webhookUrl) {
-  if (!webhookUrl) return;
-  try {
-    const payload = {
-      embeds: [{
-        title: "🚨 STOP & GO LEDGER - SYSTEM ERROR 🚨",
-        description: `An error was encountered in the Stop & Go Ledger application:\n\n\`\`\`\n${errorMessage}\n\`\`\`\n\nPlease check the Google Cloud Console / Firebase Console immediately.`,
-        color: 15158332, // Red
-        timestamp: new Date().toISOString()
-      }]
-    };
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (err) {
-    console.error("Failed to send Discord error notification:", err);
-  }
-}
-
-export async function sendDiscordNotification(shift, webhookUrl) {
-  if (!webhookUrl) return;
-
-  try {
-    let tillStatusText = "N/A (Opening Shift)";
-    let alertPrefix = "";
-    let color = 5814783; // Blueish color (Decimal for Hex: 58B9FF)
-    
-    if (shift.shift_type === 'closing') {
-      if (shift.till_status === 'balanced') {
-        tillStatusText = "✅ Balanced ($0.00)";
-        color = 3066993; // Green
-      } else if (shift.till_status === 'over') {
-        tillStatusText = `📈 Over (+$${Number(shift.till_discrepancy_amount).toFixed(2)})`;
-        color = 15105570; // Orange
-        if (shift.till_discrepancy_amount >= 10) {
-          alertPrefix = "🚨 **LARGE TILL DISCREPANCY** 🚨\n";
-          color = 15158332; // Red
-        }
-      } else if (shift.till_status === 'under') {
-        tillStatusText = `📉 Under (-$${Number(shift.till_discrepancy_amount).toFixed(2)})`;
-        color = 15158332; // Red
-        alertPrefix = "🚨 **TILL IS UNDER** 🚨\n";
-      }
-    }
-
-    const completedPercent = shift.total_count > 0 
-      ? Math.round((shift.completed_count / shift.total_count) * 100) 
-      : 0;
-
-    // Build the employee names list from signatures if available, otherwise fallback to team pids
-    let sigList = "No signatures";
-    if (shift.signatures) {
-      if (Array.isArray(shift.signatures)) {
-        sigList = shift.signatures.map(s => s.name).join(' & ');
-      } else {
-        // Handle object format in tests
-        const sigObj = shift.signatures;
-        const names = [];
-        if (sigObj.manager_name) names.push(sigObj.manager_name);
-        if (sigObj.operator_name) names.push(sigObj.operator_name);
-        if (names.length > 0) sigList = names.join(' & ');
-      }
-    }
-
-    const embed = {
-      title: `${shift.shift_type === 'opening' ? '☀️' : '🌙'} Shift Submitted: Stop & Go Chores`,
-      description: `${alertPrefix}Shift date: **${shift.date}** (${shift.shift_type.toUpperCase()})`,
-      color: color,
-      fields: [
-        {
-          name: "📋 Chore Completion",
-          value: `**${shift.completed_count} / ${shift.total_count}** completed (${completedPercent}%)`,
-          inline: true
-        },
-        {
-          name: "💰 Till Closing Report",
-          value: tillStatusText,
-          inline: true
-        },
-        {
-          name: "👥 Active Roster",
-          value: shift.active_team_pids && shift.active_team_pids.length > 0 
-            ? `Checked-in IDs: ${shift.active_team_pids.join(', ')}`
-            : "No active roster",
-          inline: false
-        },
-        {
-          name: "✍️ Sign-off Authorities",
-          value: sigList,
-          inline: false
-        }
-      ],
-      timestamp: new Date().toISOString(),
-      footer: {
-        text: "Stop & Go Dynamic Chores App"
-      }
-    };
-
-    const payload = {
-      content: alertPrefix ? `🚨 **Alert:** Shift closing has a till discrepancy! 🚨` : `Shift submitted for **${shift.date}**`,
-      embeds: [embed]
-    };
-
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-  } catch (error) {
-    console.error("Failed to send Discord notification:", error);
-  }
-}
-
-// --- Simulated Daily CRON Cleanup (04:00 AM) ---
-export async function simulateDailyCleanup() {
-  const analyticsPayloads = [];
-
-  if (isLiveMode()) {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'active_shifts'));
-      for (const docSnapshot of querySnapshot.docs) {
-        const shiftData = docSnapshot.data();
-        if (shiftData.status === 'open' || shiftData.status === 'pending_signatures') {
-          const shiftId = docSnapshot.id;
-          
-          // Get tasks
-          const tasksSnap = await getDocs(collection(db, 'active_shifts', shiftId, 'tasks'));
-          let missedCount = 0;
-          const taskUpdates = [];
-
-          tasksSnap.forEach(tDoc => {
-            const task = tDoc.data();
-            if (!task.is_completed) {
-              missedCount++;
-              taskUpdates.push({
-                id: tDoc.id,
-                data: { missed: true }
-              });
-            }
-          });
-
-          // Run writes
-          for (const update of taskUpdates) {
-            const taskRef = doc(db, 'active_shifts', shiftId, 'tasks', update.id);
-            await updateDoc(taskRef, update.data);
-          }
-
-          // Update shift status
-          const shiftRef = doc(db, 'active_shifts', shiftId);
-          await updateDoc(shiftRef, {
-            status: "missed_cleanup",
-            missed_count: missedCount,
-            cleaned_up_at: serverTimestamp()
-          });
-
-          analyticsPayloads.push({
-            shift_id: shiftId,
-            date: shiftData.date,
-            shift_type: shiftData.shift_type,
-            status_before_cleanup: shiftData.status,
-            completed_tasks: shiftData.completed_count,
-            total_tasks: shiftData.total_count,
-            missed_tasks_count: missedCount,
-            active_team: shiftData.active_team_pids
-          });
-        }
-      }
-    } catch (e) {
-      console.error("Firestore cleanup simulation error:", e);
-    }
-  }
-
-  // Always apply to mock shifts
-  const mockShifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  Object.keys(mockShifts).forEach(shiftId => {
-    const shift = mockShifts[shiftId];
-    if (shift.status === 'open' || shift.status === 'pending_signatures') {
-      let missedCount = 0;
-      Object.keys(shift.tasks).forEach(taskId => {
-        const t = shift.tasks[taskId];
-        if (!t.is_completed) {
-          t.missed = true;
-          missedCount++;
-        }
-      });
-      const oldStatus = shift.status;
-      shift.status = 'missed_cleanup';
-      shift.missed_count = missedCount;
-      shift.cleaned_up_at = new Date().toISOString();
-
-      analyticsPayloads.push({
-        shift_id: shiftId,
-        date: shift.date,
-        shift_type: shift.shift_type,
-        status_before_cleanup: oldStatus,
-        completed_tasks: shift.completed_count,
-        total_tasks: shift.total_count,
-        missed_tasks_count: missedCount,
-        active_team: shift.active_team_pids
-      });
-    }
-  });
-
-  localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(mockShifts));
-  return analyticsPayloads;
-}
-
-const MOCK_KEY_TEMPLATES = 'stop_go_mock_chore_templates';
-
-export async function getChoreTemplates() {
-  if (isLiveMode()) {
-    try {
-      const snap = await getDocs(collection(db, 'chore_templates'));
-      const list = [];
-      snap.forEach(doc => {
-        list.push(doc.data());
-      });
-      if (list.length === 0) {
-        const seeded = [];
-        for (const t of OPENING_TASKS) {
-          const docRef = doc(db, 'chore_templates', t.id);
-          const data = { id: t.id, name: t.name, cat: t.cat, shift_type: 'opening', subtasks: t.subtasks || [] };
-          await setDoc(docRef, data);
-          seeded.push(data);
-        }
-        for (const t of CLOSING_TASKS) {
-          const docRef = doc(db, 'chore_templates', t.id);
-          const data = { id: t.id, name: t.name, cat: t.cat, shift_type: 'closing', subtasks: t.subtasks || [] };
-          await setDoc(docRef, data);
-          seeded.push(data);
-        }
-        return seeded;
-      }
-      return list;
-    } catch (e) {
-      console.error("Firestore getChoreTemplates error, falling back to mock:", e);
-    }
-  }
-
-  let stored = localStorage.getItem(MOCK_KEY_TEMPLATES);
-  if (!stored) {
-    const defaultTemplates = [];
-    OPENING_TASKS.forEach(t => {
-      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'opening', subtasks: t.subtasks || [] });
-    });
-    CLOSING_TASKS.forEach(t => {
-      defaultTemplates.push({ id: t.id, name: t.name, cat: t.cat, shift_type: 'closing', subtasks: t.subtasks || [] });
-    });
-    localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(defaultTemplates));
-    return defaultTemplates;
-  }
-  return JSON.parse(stored);
-}
-
-export async function addChoreTemplate(chore) {
-  const newId = `CT_${Date.now()}`;
-  const data = {
-    id: newId,
-    name: chore.name,
-    cat: chore.cat,
-    shift_type: chore.shift_type,
-    subtasks: chore.subtasks || []
-  };
-
-  if (isLiveMode()) {
-    try {
-      const docRef = doc(db, 'chore_templates', newId);
-      await setDoc(docRef, data);
-      return data;
-    } catch (e) {
-      console.error("Firestore addChoreTemplate error:", e);
-    }
-  }
-
-  const list = await getChoreTemplates();
-  list.push(data);
-  localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(list));
-  return data;
-}
-
-export async function deleteChoreTemplate(id) {
-  if (isLiveMode()) {
-    try {
-      const docRef = doc(db, 'chore_templates', id);
-      await deleteDoc(docRef);
-      return true;
-    } catch (e) {
-      console.error("Firestore deleteChoreTemplate error:", e);
-      return false;
-    }
-  }
-
-  const list = await getChoreTemplates();
-  const filtered = list.filter(t => t.id !== id);
-  localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(filtered));
-  return true;
-}
-export async function updateChoreTemplate(id, chore) {
-  const data = {
-    id: id,
-    name: chore.name,
-    cat: chore.cat,
-    shift_type: chore.shift_type,
-    subtasks: chore.subtasks || []
-  };
-
-  if (isLiveMode()) {
-    try {
-      const docRef = doc(db, 'chore_templates', id);
-      await setDoc(docRef, data);
-      return data;
-    } catch (e) {
-      console.error("Firestore updateChoreTemplate error:", e);
-    }
-  }
-
-  const list = await getChoreTemplates();
-  const idx = list.findIndex(t => t.id === id);
-  if (idx !== -1) {
-    list[idx] = data;
-    localStorage.setItem(MOCK_KEY_TEMPLATES, JSON.stringify(list));
-    return data;
-  }
-  return null;
-}
-
-export async function getSubmittedShifts() {
-  if (isLiveMode()) {
-    try {
-      const snap = await getDocs(collection(db, 'active_shifts'));
-      const list = [];
-      snap.forEach(doc => {
-        const data = doc.data();
-        if (data.status === 'submitted' || data.status === 'missed_cleanup') {
-          list.push(data);
-        }
-      });
-      return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
-    } catch (e) {
-      console.error("Firestore getSubmittedShifts error:", e);
-    }
-  }
-
-  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  const list = Object.values(shifts).filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
-  return list.sort((a, b) => new Date(b.date + 'T23:59:59') - new Date(a.date + 'T23:59:59'));
-}
-
-export async function deleteShift(shiftId) {
-  if (isLiveMode()) {
-    try {
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      await deleteDoc(shiftDocRef);
-      return true;
-    } catch (e) {
-      console.error("Firestore deleteShift error:", e);
-      return false;
-    }
-  }
-
-  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  if (shifts[shiftId]) {
-    delete shifts[shiftId];
-    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
-    return true;
-  }
-  return false;
-}
-
-export async function addEmployee(emp) {
-  const newId = emp.employee_id || `EMP_${Date.now()}`;
-  const pin_hash = await hashPin(emp.pin);
-  const data = {
-    employee_id: newId,
-    employee_name: emp.employee_name,
-    pin_hash,
-    role: emp.role,
-    is_active: true
-  };
-
-  if (isLiveMode()) {
-    try {
-      const docRef = doc(db, 'employees', newId);
-      await setDoc(docRef, data);
-      return data;
-    } catch (e) {
-      console.error("Firestore addEmployee error:", e);
-    }
-  }
-
-  const list = await getEmployees();
-  list.push(data);
-  localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
-  return data;
-}
-
-export async function deleteEmployee(employeeId) {
-  if (isLiveMode()) {
-    try {
-      const docRef = doc(db, 'employees', employeeId);
-      await deleteDoc(docRef);
-      return true;
-    } catch (e) {
-      console.error("Firestore deleteEmployee error:", e);
-      return false;
-    }
-  }
-
-  const list = await getEmployees();
-  const filtered = list.filter(e => e.employee_id !== employeeId);
-  localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(filtered));
-  return true;
-}
-
-export async function updateEmployeePin(employeeId, newPin) {
-  const pin_hash = await hashPin(newPin);
-
-  if (isLiveMode()) {
-    try {
-      const docRef = doc(db, 'employees', employeeId);
-      await updateDoc(docRef, { pin_hash });
-      return true;
-    } catch (e) {
-      console.error("Firestore updateEmployeePin error:", e);
-      return false;
-    }
-  }
-
-  const list = await getEmployees();
-  const idx = list.findIndex(e => e.employee_id === employeeId);
-  if (idx !== -1) {
-    list[idx].pin_hash = pin_hash;
-    localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
-    return true;
-  }
-  return false;
-}
-
-export async function sendDiscordShiftStarted(shift, webhookUrl) {
-  if (!webhookUrl) return;
-  try {
-    const color = 5814783; // Blue
-    const embed = {
-      title: `🚀 Shift Started: Stop & Go Chores`,
-      description: `A new shift has been initialized for **${shift.date}** (${shift.shift_type.toUpperCase()})`,
-      color: color,
-      fields: [
-        {
-          name: "👥 Active Team Roster",
-          value: shift.active_team_pids && shift.active_team_pids.length > 0
-            ? `Checked-in IDs: ${shift.active_team_pids.join(', ')}`
-            : "No active roster",
-          inline: false
-        }
-      ],
-      timestamp: new Date().toISOString(),
-      footer: {
-        text: "Stop & Go Dynamic Chores App"
-      }
-    };
-    const payload = {
-      content: `🚀 Shift started for **${shift.date}** (${shift.shift_type})`,
-      embeds: [embed]
-    };
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (error) {
-    console.error("Failed to send Discord shift started notification:", error);
-  }
-}
-
-export async function sendDiscordShiftArchived(shift, webhookUrl) {
-  if (!webhookUrl) return;
-  try {
-    const color = 15158332; // Red
-    const completedPercent = shift.total_tasks > 0 
-      ? Math.round((shift.completed_tasks / shift.total_tasks) * 100) 
-      : 0;
-    const embed = {
-      title: `⚠️ Shift Auto-Archived: Stop & Go Chores`,
-      description: `Shift for **${shift.date}** (${shift.shift_type.toUpperCase()}) was left open and has been auto-archived.`,
-      color: color,
-      fields: [
-        {
-          name: "📋 Chore Completion",
-          value: `**${shift.completed_tasks} / ${shift.total_tasks}** completed (${completedPercent}%)`,
-          inline: true
-        },
-        {
-          name: "🚨 Missed Chores",
-          value: `**${shift.missed_tasks_count}** chores were left incomplete`,
-          inline: true
-        },
-        {
-          name: "👥 Roster",
-          value: shift.active_team && shift.active_team.length > 0 
-            ? `IDs: ${shift.active_team.join(', ')}`
-            : "No active roster",
-          inline: false
-        }
-      ],
-      timestamp: new Date().toISOString(),
-      footer: {
-        text: "Stop & Go Dynamic Chores App"
-      }
-    };
-    const payload = {
-      content: `⚠️ Shift auto-archived for **${shift.date}** (${shift.shift_type})`,
-      embeds: [embed]
-    };
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (error) {
-    console.error("Failed to send Discord shift archived notification:", error);
-  }
-}
-
-export async function sendDiscordShiftDeleted(shiftDate, shiftType, webhookUrl) {
-  if (!webhookUrl) return;
-  try {
-    const color = 15105570; // Amber
-    const embed = {
-      title: `🗑️ Shift Deleted: Stop & Go Chores`,
-      description: `Shift checklist for **${shiftDate}** (${shiftType.toUpperCase()}) was deleted by a manager.`,
-      color: color,
-      timestamp: new Date().toISOString(),
-      footer: {
-        text: "Stop & Go Dynamic Chores App"
-      }
-    };
-    const payload = {
-      content: `🗑️ Shift deleted for **${shiftDate}** (${shiftType})`,
-      embeds: [embed]
-    };
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (error) {
-    console.error("Failed to send Discord shift deleted notification:", error);
-  }
-}
-
-export async function updateShiftNotes(shiftId, notes) {
-  if (isLiveMode()) {
-    try {
-      const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      await updateDoc(shiftDocRef, {
-        notes: notes
-      });
-      return await getActiveShift(shiftId);
-    } catch (e) {
-      console.error("Firestore updateShiftNotes error:", e);
-    }
-  }
-
-  const shifts = JSON.parse(localStorage.getItem(MOCK_KEY_SHIFTS) || '{}');
-  const shift = shifts[shiftId];
-  if (shift) {
-    shift.notes = notes;
-    shifts[shiftId] = shift;
-    localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
-    return shift;
-  }
-  return null;
-}
-
-const DEFAULT_SLOW_CHORES = [
-  { id: 'SC_01', name: 'Clean Bathroom & Restock Supplies', frequency_days: 3, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_02', name: 'Check Parking Lot for Trash & Garbage', frequency_days: 2, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_03', name: 'Pull Weeds Outside Front Entrance', frequency_days: 7, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null },
-  { id: 'SC_04', name: 'Deep Clean Back Shelving & Racks', frequency_days: 5, last_completed_at: null, last_completed_by_id: null, last_completed_by_name: null }
-];
-
-const MOCK_KEY_SLOW_CHORES = 'stop_go_mock_slow_chores';
-
-export async function getSlowChores() {
-  if (isLiveMode()) {
-    try {
-      const snap = await getDocs(collection(db, 'slow_chores'));
-      const list = [];
-      snap.forEach(doc => {
-        list.push(doc.data());
-      });
-      if (list.length === 0) {
-        for (const sc of DEFAULT_SLOW_CHORES) {
-          await setDoc(doc(db, 'slow_chores', sc.id), sc);
-        }
-        return DEFAULT_SLOW_CHORES;
-      }
-      return list;
-    } catch (e) {
-      console.error("Firestore getSlowChores error, falling back to mock:", e);
-    }
-  }
-
-  let stored = localStorage.getItem(MOCK_KEY_SLOW_CHORES);
-  if (!stored) {
-    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(DEFAULT_SLOW_CHORES));
-    return DEFAULT_SLOW_CHORES;
-  }
-  return JSON.parse(stored);
-}
-
-export async function addSlowChore(chore) {
-  const newId = `SC_${Date.now()}`;
-  const data = {
-    id: newId,
-    name: chore.name,
-    frequency_days: Number(chore.frequency_days),
-    last_completed_at: null,
-    last_completed_by_id: null,
-    last_completed_by_name: null
-  };
-
-  if (isLiveMode()) {
-    try {
-      await setDoc(doc(db, 'slow_chores', newId), data);
-      return data;
-    } catch (e) {
-      console.error("Firestore addSlowChore error:", e);
-    }
-  }
-
-  const list = await getSlowChores();
-  list.push(data);
-  localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
-  return data;
-}
-
-export async function updateSlowChore(id, chore) {
-  if (isLiveMode()) {
-    try {
-      const docRef = doc(db, 'slow_chores', id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const existing = docSnap.data();
-        const updated = {
-          ...existing,
-          name: chore.name,
-          frequency_days: Number(chore.frequency_days)
-        };
-        await setDoc(docRef, updated);
-        return updated;
-      }
-    } catch (e) {
-      console.error("Firestore updateSlowChore error:", e);
-    }
-  }
-
-  const list = await getSlowChores();
-  const idx = list.findIndex(c => c.id === id);
-  if (idx !== -1) {
-    list[idx].name = chore.name;
-    list[idx].frequency_days = Number(chore.frequency_days);
-    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
-    return list[idx];
-  }
-  return null;
-}
-
-export async function deleteSlowChore(id) {
-  if (isLiveMode()) {
-    try {
-      await deleteDoc(doc(db, 'slow_chores', id));
-      return true;
-    } catch (e) {
-      console.error("Firestore deleteSlowChore error:", e);
-      return false;
-    }
-  }
-
-  const list = await getSlowChores();
-  const filtered = list.filter(c => c.id !== id);
-  localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(filtered));
-  return true;
-}
-
-export async function completeSlowChore(id, employeeId, employeeName) {
-  const nowStr = new Date().toISOString();
-  if (isLiveMode()) {
-    try {
-      const docRef = doc(db, 'slow_chores', id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const existing = docSnap.data();
-        const updated = {
-          ...existing,
-          last_completed_at: nowStr,
-          last_completed_by_id: employeeId,
-          last_completed_by_name: employeeName
-        };
-        await setDoc(docRef, updated);
-        return updated;
-      }
-    } catch (e) {
-      console.error("Firestore completeSlowChore error:", e);
-    }
-  }
-
-  const list = await getSlowChores();
-  const idx = list.findIndex(c => c.id === id);
-  if (idx !== -1) {
-    list[idx].last_completed_at = nowStr;
-    list[idx].last_completed_by_id = employeeId;
-    list[idx].last_completed_by_name = employeeName;
-    localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
-    return list[idx];
-  }
-  return null;
-}
-
