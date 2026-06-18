@@ -411,12 +411,10 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
       }
     }
 
-    const schedStr = chore.days_of_week.map(d => d.slice(0, 3)).join(", ");
-
     // If never completed, show relative to first due date
     if (!chore.last_completed_at) {
       const firstDue = getFirstDueDate(chore);
-      if (!firstDue) return `Rotation Anchor: ${schedStr}`;
+      if (!firstDue) return "";
 
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
@@ -425,12 +423,11 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
       const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
       if (diffDays === 0) {
-        return `Due today (Staggered Anchor: ${schedStr})`;
+        return "Due today";
       } else if (diffDays < 0) {
-        const overdueDays = Math.abs(diffDays);
         const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
         const firstDueDayName = days[firstDue.getDay()];
-        return `⚠️ Overdue since ${firstDueDayName} (Staggered Anchor: ${schedStr})`;
+        return `⚠️ Overdue since ${firstDueDayName}`;
       } else {
         const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
         const firstDueDayName = days[firstDue.getDay()];
@@ -440,7 +437,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
 
     // If completed, runs on frequency from last completion
     const d = parseDate(chore.last_completed_at);
-    if (!d) return `Rotation Anchor: ${schedStr}`;
+    if (!d) return "";
 
     const nextDueTime = d.getTime() + (chore.frequency_days * 24 * 60 * 60 * 1000);
     const diffMs = nextDueTime - Date.now();
@@ -448,15 +445,15 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
     if (diffMs <= 0) {
       const overdueDays = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
       return overdueDays > 0 
-        ? `⚠️ Overdue by ${overdueDays} day${overdueDays > 1 ? 's' : ''} (Cycle: ${formatFrequency(chore.frequency_days)})`
-        : `⚠️ Overdue (Cycle: ${formatFrequency(chore.frequency_days)})`;
+        ? `⚠️ Overdue by ${overdueDays} day${overdueDays > 1 ? 's' : ''}`
+        : "Due today";
     } else {
       const remainingDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
       if (remainingDays > 0) {
-        return `Due in ${remainingDays} day${remainingDays > 1 ? 's' : ''} (Cycle: ${formatFrequency(chore.frequency_days)})`;
+        return `Due in ${remainingDays} day${remainingDays > 1 ? 's' : ''}`;
       } else {
         const remainingHours = Math.floor(diffMs / (1000 * 60 * 60));
-        return `Due in ${remainingHours} hour${remainingHours > 1 ? 's' : ''} (Cycle: ${formatFrequency(chore.frequency_days)})`;
+        return `Due in ${remainingHours} hour${remainingHours > 1 ? 's' : ''}`;
       }
     }
   };
