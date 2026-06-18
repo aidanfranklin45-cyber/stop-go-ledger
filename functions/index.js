@@ -314,19 +314,17 @@ app.post("/shifts", async (req, res) => {
     const tasks = {};
     for (const t of taskTemplates) {
       const taskData = {
-        id: t.id,
-        name: t.name,
-        cat: t.cat,
-        completed: false,
-        completed_at: null,
+        task_id: t.id,
+        task_name: t.name,
+        category: t.cat,
+        is_completed: false,
         completed_by_id: null,
         completed_by_name: null,
+        timestamp: null,
+        requires_verification: false,
         subtasks: (t.subtasks || []).map(stName => ({
           name: stName,
-          completed: false,
-          completed_at: null,
-          completed_by_id: null,
-          completed_by_name: null
+          is_completed: false
         }))
       };
       await shiftDocRef.collection("tasks").doc(t.id).set(taskData);
