@@ -158,8 +158,17 @@ export function clearFirebaseConfig() {
   // Config is now hardcoded; this function is a no-op
 }
 
+let liveDisabled = false;
+
 export function isLiveMode() {
-  return db !== null;
+  return db !== null && !liveDisabled;
+}
+
+function withTimeout(promise, ms = 4000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+  ]);
 }
 
 export async function initializeFirebaseConnection(config = null) {
@@ -226,7 +235,7 @@ initMockDatabase();
 export async function getEmployees() {
   if (isLiveMode()) {
     try {
-      const snap = await getDocs(collection(db, 'employees'));
+      const snap = await withTimeout(getDocs(collection(db, 'employees')), 4000);
       const list = [];
       snap.forEach(doc => {
         list.push(doc.data());
@@ -239,6 +248,10 @@ export async function getEmployees() {
       return list;
     } catch (e) {
       console.error("Firestore getEmployees error, falling back to mock:", e);
+      if (e.message === "Timeout") {
+        console.warn("Firestore connection timed out. Disabling live mode and falling back to mock.");
+        liveDisabled = true;
+      }
     }
   }
   
@@ -273,13 +286,13 @@ export async function getActiveShift(shiftId) {
   if (isLiveMode()) {
     try {
       const shiftDocRef = doc(db, 'active_shifts', shiftId);
-      const docSnap = await getDoc(shiftDocRef);
+      const docSnap = await withTimeout(getDoc(shiftDocRef), 4000);
       if (!docSnap.exists()) return null;
 
       const shiftData = docSnap.data();
       
       // Fetch tasks subcollection
-      const tasksSnap = await getDocs(collection(db, 'active_shifts', shiftId, 'tasks'));
+      const tasksSnap = await withTimeout(getDocs(collection(db, 'active_shifts', shiftId, 'tasks')), 4000);
       const tasks = {};
       tasksSnap.forEach(tDoc => {
         tasks[tDoc.id] = tDoc.data();
@@ -291,6 +304,10 @@ export async function getActiveShift(shiftId) {
       };
     } catch (e) {
       console.error("Firestore getActiveShift error:", e);
+      if (e.message === "Timeout") {
+        console.warn("Firestore connection timed out. Disabling live mode and falling back to mock.");
+        liveDisabled = true;
+      }
     }
   }
 
