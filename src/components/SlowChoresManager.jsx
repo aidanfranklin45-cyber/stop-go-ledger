@@ -140,6 +140,18 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
 
       if (editingChore) {
         // Edit Chore
+        const oldDays = [...(editingChore.days_of_week || [])].sort();
+        const newDays = [...(daysOfWeek || [])].sort();
+        const daysChanged = JSON.stringify(oldDays) !== JSON.stringify(newDays);
+        if (daysChanged) {
+          chorePayload.last_completed_at = null;
+          chorePayload.last_completed_by_id = null;
+          chorePayload.last_completed_by_name = null;
+          chorePayload.created_at = new Date().toISOString();
+        } else {
+          chorePayload.created_at = editingChore.created_at || new Date().toISOString();
+        }
+
         const updated = await updateSlowChore(editingChore.id, chorePayload);
         if (updated) {
           setManagerSuccess(`Successfully updated "${choreName.trim()}"`);
@@ -150,6 +162,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
         }
       } else {
         // Add Chore
+        chorePayload.created_at = new Date().toISOString();
         const added = await addSlowChore(chorePayload);
         if (added) {
           setManagerSuccess(`Successfully scheduled "${choreName.trim()}"`);
@@ -293,9 +306,14 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
     }
 
     try {
-      const updated = await updateSlowChore(choreId, {
-        days_of_week: updatedDays
-      });
+      const updatePayload = {
+        days_of_week: updatedDays,
+        last_completed_at: null,
+        last_completed_by_id: null,
+        last_completed_by_name: null,
+        created_at: new Date().toISOString()
+      };
+      const updated = await updateSlowChore(choreId, updatePayload);
       if (updated) {
         await loadSlowChores();
       }
@@ -314,6 +332,26 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
     return isNaN(d.getTime()) ? null : d;
   };
 
+  // Helper: get the first due date matching days_of_week on or after created_at
+  const getFirstDueDate = (chore) => {
+    if (!chore.days_of_week || chore.days_of_week.length === 0) {
+      return null;
+    }
+    const startStr = chore.created_at || "2026-06-12T00:00:00.000Z";
+    const startDate = new Date(startStr);
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    
+    for (let i = 0; i < 7; i++) {
+      const checkDate = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+      const dayName = days[checkDate.getDay()];
+      if (chore.days_of_week.includes(dayName)) {
+        checkDate.setHours(0, 0, 0, 0);
+        return checkDate;
+      }
+    }
+    return null;
+  };
+
   // Helper: check if due
   const isDue = (chore) => {
     if (!chore.days_of_week || chore.days_of_week.length === 0) {
@@ -325,44 +363,30 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
       return elapsedDays >= chore.frequency_days;
     }
 
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const todayIdx = new Date().getDay();
-    const todayName = days[todayIdx];
-
-    if (!chore.days_of_week.includes(todayName)) {
-      let lastScheduledIdx = null;
-      for (let i = 1; i <= 7; i++) {
-        const checkIdx = (todayIdx - i + 7) % 7;
-        const checkName = days[checkIdx];
-        if (chore.days_of_week.includes(checkName)) {
-          lastScheduledIdx = checkIdx;
-          break;
-        }
-      }
-      if (lastScheduledIdx === null) return false;
-
-      if (!chore.last_completed_at) return true;
-      const lastCompleted = parseDate(chore.last_completed_at);
-      if (!lastCompleted) return true;
-
-      const lastScheduledDate = new Date();
-      lastScheduledDate.setDate(lastScheduledDate.getDate() - ((todayIdx - lastScheduledIdx + 7) % 7 || 7));
-      lastScheduledDate.setHours(0, 0, 0, 0);
-
-      return lastCompleted.getTime() < lastScheduledDate.getTime();
+    if (chore.last_completed_at) {
+      const d = parseDate(chore.last_completed_at);
+      if (!d) return true;
+      const elapsedMs = Date.now() - d.getTime();
+      const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24);
+      return elapsedDays >= chore.frequency_days;
     }
 
-    if (!chore.last_completed_at) return true;
-    const lastCompleted = parseDate(chore.last_completed_at);
-    if (!lastCompleted) return true;
+    const firstDue = getFirstDueDate(chore);
+    if (!firstDue) return true;
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    return lastCompleted.getTime() < todayStart.getTime();
+
+    return todayStart.getTime() >= firstDue.getTime();
   };
 
   // Helper: calculate time remaining or overdue
   const getScheduleLabel = (chore) => {
+    const formatFrequency = (daysVal) => {
+      if (daysVal === 1) return "every day";
+      return `every ${daysVal} days`;
+    };
+
     if (!chore.days_of_week || chore.days_of_week.length === 0) {
       if (!chore.last_completed_at) return "Never completed (Needs Attention)";
       const d = parseDate(chore.last_completed_at);
@@ -387,75 +411,54 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
       }
     }
 
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const todayIdx = new Date().getDay();
-    const todayName = days[todayIdx];
-
     const schedStr = chore.days_of_week.map(d => d.slice(0, 3)).join(", ");
 
-    if (chore.days_of_week.includes(todayName)) {
-      if (!chore.last_completed_at) return `Due today (Scheduled: ${schedStr})`;
-      const lastCompleted = parseDate(chore.last_completed_at);
-      if (!lastCompleted) return `Due today (Scheduled: ${schedStr})`;
+    // If never completed, show relative to first due date
+    if (!chore.last_completed_at) {
+      const firstDue = getFirstDueDate(chore);
+      if (!firstDue) return `Rotation Anchor: ${schedStr}`;
 
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      if (lastCompleted.getTime() < todayStart.getTime()) {
-        return `Due today (Scheduled: ${schedStr})`;
+
+      const diffMs = firstDue.getTime() - todayStart.getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) {
+        return `Due today (Staggered Anchor: ${schedStr})`;
+      } else if (diffDays < 0) {
+        const overdueDays = Math.abs(diffDays);
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const firstDueDayName = days[firstDue.getDay()];
+        return `⚠️ Overdue since ${firstDueDayName} (Staggered Anchor: ${schedStr})`;
       } else {
-        let nextScheduledIdx = null;
-        for (let i = 1; i <= 7; i++) {
-          const checkIdx = (todayIdx + i) % 7;
-          const checkName = days[checkIdx];
-          if (chore.days_of_week.includes(checkName)) {
-            nextScheduledIdx = checkIdx;
-            break;
-          }
-        }
-        return `Completed today • Next: ${days[nextScheduledIdx]}`;
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const firstDueDayName = days[firstDue.getDay()];
+        return `Upcoming: starts ${firstDueDayName} (${diffDays === 1 ? 'tomorrow' : `in ${diffDays} days`})`;
       }
     }
 
-    let lastScheduledIdx = null;
-    for (let i = 1; i <= 7; i++) {
-      const checkIdx = (todayIdx - i + 7) % 7;
-      const checkName = days[checkIdx];
-      if (chore.days_of_week.includes(checkName)) {
-        lastScheduledIdx = checkIdx;
-        break;
-      }
-    }
+    // If completed, runs on frequency from last completion
+    const d = parseDate(chore.last_completed_at);
+    if (!d) return `Rotation Anchor: ${schedStr}`;
 
-    let isOverdueVal = false;
-    if (!chore.last_completed_at) {
-      isOverdueVal = true;
+    const nextDueTime = d.getTime() + (chore.frequency_days * 24 * 60 * 60 * 1000);
+    const diffMs = nextDueTime - Date.now();
+
+    if (diffMs <= 0) {
+      const overdueDays = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+      return overdueDays > 0 
+        ? `⚠️ Overdue by ${overdueDays} day${overdueDays > 1 ? 's' : ''} (Cycle: ${formatFrequency(chore.frequency_days)})`
+        : `⚠️ Overdue (Cycle: ${formatFrequency(chore.frequency_days)})`;
     } else {
-      const lastCompleted = parseDate(chore.last_completed_at);
-      if (!lastCompleted) {
-        isOverdueVal = true;
+      const remainingDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (remainingDays > 0) {
+        return `Due in ${remainingDays} day${remainingDays > 1 ? 's' : ''} (Cycle: ${formatFrequency(chore.frequency_days)})`;
       } else {
-        const lastScheduledDate = new Date();
-        lastScheduledDate.setDate(lastScheduledDate.getDate() - ((todayIdx - lastScheduledIdx + 7) % 7 || 7));
-        lastScheduledDate.setHours(0, 0, 0, 0);
-        isOverdueVal = lastCompleted.getTime() < lastScheduledDate.getTime();
+        const remainingHours = Math.floor(diffMs / (1000 * 60 * 60));
+        return `Due in ${remainingHours} hour${remainingHours > 1 ? 's' : ''} (Cycle: ${formatFrequency(chore.frequency_days)})`;
       }
     }
-
-    if (isOverdueVal) {
-      return `⚠️ Overdue since ${days[lastScheduledIdx]} (Scheduled: ${schedStr})`;
-    }
-
-    let nextScheduledIdx = null;
-    for (let i = 1; i <= 7; i++) {
-      const checkIdx = (todayIdx + i) % 7;
-      const checkName = days[checkIdx];
-      if (chore.days_of_week.includes(checkName)) {
-        nextScheduledIdx = checkIdx;
-        break;
-      }
-    }
-    const daysDiff = (nextScheduledIdx - todayIdx + 7) % 7 || 7;
-    return `Next: ${days[nextScheduledIdx]} (${daysDiff === 1 ? 'tomorrow' : `in ${daysDiff} days`})`;
   };
 
   const dueChores = slowChoresList.filter(c => isDue(c));

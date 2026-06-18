@@ -714,9 +714,10 @@ export async function addSlowChore(chore) {
     days_of_week: chore.days_of_week || [],
     labor_intensity: chore.labor_intensity || "medium",
     subtasks: chore.subtasks || [],
-    last_completed_at: null,
-    last_completed_by_id: null,
-    last_completed_by_name: null
+    last_completed_at: chore.last_completed_at !== undefined ? chore.last_completed_at : null,
+    last_completed_by_id: chore.last_completed_by_id !== undefined ? chore.last_completed_by_id : null,
+    last_completed_by_name: chore.last_completed_by_name !== undefined ? chore.last_completed_by_name : null,
+    created_at: chore.created_at || new Date().toISOString()
   };
   list.push(data);
   localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
@@ -742,6 +743,12 @@ export async function updateSlowChore(id, chore) {
     list[idx].days_of_week = chore.days_of_week !== undefined ? chore.days_of_week : list[idx].days_of_week;
     list[idx].labor_intensity = chore.labor_intensity !== undefined ? chore.labor_intensity : list[idx].labor_intensity;
     list[idx].subtasks = chore.subtasks !== undefined ? chore.subtasks : list[idx].subtasks;
+    
+    if (chore.created_at !== undefined) list[idx].created_at = chore.created_at;
+    if (chore.last_completed_at !== undefined) list[idx].last_completed_at = chore.last_completed_at;
+    if (chore.last_completed_by_id !== undefined) list[idx].last_completed_by_id = chore.last_completed_by_id;
+    if (chore.last_completed_by_name !== undefined) list[idx].last_completed_by_name = chore.last_completed_by_name;
+    
     localStorage.setItem(MOCK_KEY_SLOW_CHORES, JSON.stringify(list));
     return list[idx];
   }

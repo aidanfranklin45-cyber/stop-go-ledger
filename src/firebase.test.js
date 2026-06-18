@@ -874,5 +874,36 @@ describe('Firebase Service Unit Tests', () => {
       expect(refreshed.last_completed_at).toBe(completed.last_completed_at);
       expect(refreshed.subtasks[0].is_completed).toBe(false); // Reset check
     });
+
+    it('should support updating created_at and clearing last_completed_at in updateSlowChore', async () => {
+      const { getSlowChores, updateSlowChore } = firebaseModule;
+      const chores = await getSlowChores();
+      const targetChore = chores[0];
+
+      expect(targetChore.last_completed_at).toBeNull();
+
+      const timestamp = new Date().toISOString();
+      const updated = await updateSlowChore(targetChore.id, {
+        last_completed_at: timestamp,
+        last_completed_by_id: 'EMP_01',
+        last_completed_by_name: 'Alice',
+        created_at: '2026-06-18T10:00:00.000Z'
+      });
+
+      expect(updated.last_completed_at).toBe(timestamp);
+      expect(updated.created_at).toBe('2026-06-18T10:00:00.000Z');
+
+      const cleared = await updateSlowChore(targetChore.id, {
+        last_completed_at: null,
+        last_completed_by_id: null,
+        last_completed_by_name: null,
+        created_at: '2026-06-18T12:00:00.000Z'
+      });
+
+      expect(cleared.last_completed_at).toBeNull();
+      expect(cleared.last_completed_by_id).toBeNull();
+      expect(cleared.last_completed_by_name).toBeNull();
+      expect(cleared.created_at).toBe('2026-06-18T12:00:00.000Z');
+    });
   });
 });
