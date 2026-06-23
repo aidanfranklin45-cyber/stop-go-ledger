@@ -1184,6 +1184,12 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                                 </span>
                                 <textarea
                                    rows={1}
+                                   ref={el => {
+                                     if (el) {
+                                       el.style.height = 'auto';
+                                       el.style.height = el.scrollHeight + 'px';
+                                     }
+                                   }}
                                    value={st}
                                    onChange={(e) => {
                                      const val = e.target.value;

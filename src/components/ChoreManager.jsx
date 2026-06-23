@@ -461,6 +461,12 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
                       </span>
                       <textarea
                         rows={1}
+                        ref={el => {
+                          if (el) {
+                            el.style.height = 'auto';
+                            el.style.height = el.scrollHeight + 'px';
+                          }
+                        }}
                         value={st}
                         onChange={(e) => {
                           const val = e.target.value;
