@@ -8,9 +8,12 @@ import {
   Users,
   User,
   Key,
-  X
+  X,
+  Clock,
+  Flag,
+  AlertTriangle
 } from 'lucide-react';
-import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin } from '../firebase';
+import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin, getSubmittedShifts, getActiveShift } from '../firebase';
 import PinNumpad from './PinNumpad';
 
 const StaffManager = ({ onBack, defaultAuthenticated }) => {
@@ -26,6 +29,12 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [managerMessage, setManagerMessage] = useState("");
   const [managerError, setManagerError] = useState("");
+
+  // Audit history states
+  const [allShifts, setAllShifts] = useState([]);
+  const [loadingShifts, setLoadingShifts] = useState(false);
+  const [selectedEmpId, setSelectedEmpId] = useState(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState(null);
 
   // Form input states
   const [newName, setNewName] = useState("");
@@ -48,6 +57,50 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const fetchShiftsDetail = useCallback(async () => {
+    setLoadingShifts(true);
+    try {
+      const summaryList = await getSubmittedShifts();
+      const detailedList = await Promise.all(
+        summaryList.map(async (s) => {
+          const fullShift = await getActiveShift(s.shift_id);
+          return fullShift || s;
+        })
+      );
+      const completedList = detailedList.filter(s => s.status === 'submitted' || s.status === 'missed_cleanup');
+      setAllShifts(completedList);
+    } catch (err) {
+      console.error("Failed to fetch shifts for staff audit:", err);
+    } finally {
+      setLoadingShifts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchShiftsDetail();
+    }
+  }, [isAuthenticated, fetchShiftsDetail]);
+
+  const getFlaggedInstances = (empId) => {
+    const instances = [];
+    allShifts.forEach(s => {
+      if (s.tasks) {
+        Object.values(s.tasks).forEach(t => {
+          if (t.completed_by_id === empId && t.flag) {
+            instances.push({
+              ...t,
+              shift_date: s.date,
+              shift_type: s.shift_type,
+              shift_id: s.shift_id
+            });
+          }
+        });
+      }
+    });
+    return instances.sort((a, b) => new Date(b.flag.flagged_at || '1970-01-01') - new Date(a.flag.flagged_at || '1970-01-01'));
+  };
 
   const handlePinComplete = async (pin) => {
     setPinError("");
@@ -81,7 +134,6 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
         const success = await updateEmployeePin(editingEmployee.employee_id, newPin);
         if (success) {
           setManagerMessage(`Successfully updated PIN for ${editingEmployee.employee_name}.`);
-          setEditingEmployee(null);
           setNewPin("");
           await loadData();
         } else {
@@ -150,6 +202,7 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
       try {
         if (editingEmployee && editingEmployee.employee_id === empId) {
           handleCancelEdit();
+          setSelectedEmpId(null);
         }
         await deleteEmployee(empId);
         setManagerMessage(`Successfully deleted employee ${name}.`);
@@ -224,6 +277,8 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
   }
 
   // --- RENDERING STAFF EDITOR DASHBOARD ---
+  const flaggedInstances = selectedEmpId ? getFlaggedInstances(selectedEmpId) : [];
+
   return (
     <div className="main-layout animate-fade-in" style={{ gridTemplateColumns: '1fr 400px' }}>
       
@@ -255,22 +310,50 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', flexGrow: 1, paddingRight: '4px' }}>
             {employeesList.map(emp => {
               const initials = emp.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+              const isSelected = selectedEmpId === emp.employee_id;
+              const violations = getFlaggedInstances(emp.employee_id);
+              const violationsCount = violations.length;
+
               return (
                 <div 
                   key={emp.employee_id} 
                   className="member-item" 
+                  onClick={() => {
+                    setSelectedEmpId(emp.employee_id);
+                    setEditingEmployee(emp);
+                    setNewPin("");
+                    setManagerError("");
+                    setManagerMessage("");
+                  }}
                   style={{ 
-                    background: '#ffffff', 
-                    borderColor: editingEmployee?.employee_id === emp.employee_id ? 'var(--primary)' : 'rgba(15,23,42,0.06)',
-                    padding: '10px 16px',
+                    background: isSelected ? 'var(--primary-glow)' : '#ffffff', 
+                    borderColor: isSelected ? 'var(--primary)' : 'rgba(15,23,42,0.06)',
+                    borderWidth: '1.5px',
+                    borderStyle: 'solid',
+                    padding: '12px 16px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    borderRadius: 'var(--radius-sm)'
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.08)' : 'none'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexGrow: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--secondary))', color: '#ffffff', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      width: '36px', 
+                      height: '36px', 
+                      borderRadius: '50%', 
+                      background: isSelected ? 'linear-gradient(135deg, var(--primary), var(--secondary))' : 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      color: isSelected ? '#ffffff' : 'var(--text-secondary)', 
+                      fontSize: '0.85rem', 
+                      fontWeight: 'bold' 
+                    }}>
                       {initials}
                     </div>
                     <div>
@@ -283,40 +366,19 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {violationsCount > 0 && (
+                      <span className="badge badge-danger" style={{ fontSize: '0.65rem', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <Flag size={10} fill="currentColor" />
+                        <span>{violationsCount} Flag{violationsCount > 1 ? 's' : ''}</span>
+                      </span>
+                    )}
                     <button
                       type="button"
-                      onClick={() => handleStartEdit(emp)}
-                      style={{ 
-                        background: 'transparent',
-                        border: 'none',
-                        color: editingEmployee?.employee_id === emp.employee_id ? 'var(--primary)' : 'var(--text-muted)',
-                        cursor: 'pointer',
-                        padding: '6px',
-                        borderRadius: '50%',
-                        transition: 'all 0.2s',
-                        backgroundColor: editingEmployee?.employee_id === emp.employee_id ? 'var(--primary-glow)' : 'transparent'
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEmployee(emp.employee_id, emp.employee_name, emp.role);
                       }}
-                      onMouseEnter={(e) => { 
-                        if (editingEmployee?.employee_id !== emp.employee_id) {
-                          e.currentTarget.style.color = 'var(--primary)'; 
-                          e.currentTarget.style.background = 'var(--primary-glow)'; 
-                        }
-                      }}
-                      onMouseLeave={(e) => { 
-                        if (editingEmployee?.employee_id !== emp.employee_id) {
-                          e.currentTarget.style.color = 'var(--text-muted)'; 
-                          e.currentTarget.style.background = 'transparent'; 
-                        }
-                      }}
-                      title="Change PIN"
-                    >
-                      <Key size={16} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteEmployee(emp.employee_id, emp.employee_name, emp.role)}
                       style={{ 
                         background: 'transparent',
                         border: 'none',
@@ -340,38 +402,233 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
         )}
       </div>
 
-      {/* Right Column: Add/Edit Staff Form */}
-      <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', height: 'fit-content' }}>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1.15rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '10px' }}>
-          {editingEmployee ? 'Change PIN' : 'Add New Employee'}
-        </h3>
-
-        {managerMessage && (
-          <div style={{ color: 'var(--accent-green)', background: 'var(--accent-green-glow)', padding: '10px 14px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 500 }}>
-            {managerMessage}
-          </div>
-        )}
-
-        {managerError && (
-          <div style={{ color: 'var(--accent-red)', background: 'var(--accent-red-glow)', padding: '10px 14px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 500 }}>
-            {managerError}
-          </div>
-        )}
-
-        <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {editingEmployee ? (
-            <div className="form-group">
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Employee</label>
-              <input
-                type="text"
-                className="form-input"
-                value={editingEmployee.employee_name}
-                disabled
-                style={{ opacity: 0.8, cursor: 'not-allowed' }}
-              />
+      {/* Right Column: Add/Edit/View Staff Profile */}
+      <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', height: 'calc(100vh - 180px)', minHeight: '480px', overflowY: 'auto' }}>
+        {selectedEmpId && editingEmployee ? (
+          <>
+            {/* Header / Meta */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>
+              <div>
+                <span className={`badge ${editingEmployee.role === 'manager' ? 'badge-pending' : 'badge-open'}`} style={{ fontSize: '0.65rem', padding: '2px 6px', textTransform: 'capitalize', marginBottom: '6px', display: 'inline-block' }}>
+                  {editingEmployee.role}
+                </span>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.4rem', color: 'var(--text-primary)', margin: 0 }}>
+                  {editingEmployee.employee_name}
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {editingEmployee.employee_id}</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => {
+                  setSelectedEmpId(null);
+                  setEditingEmployee(null);
+                  setNewPin("");
+                  setManagerError("");
+                  setManagerMessage("");
+                }}
+              >
+                <Plus size={14} />
+                <span>New Staff</span>
+              </button>
             </div>
-          ) : (
-            <>
+
+            {/* Message banners */}
+            {managerMessage && (
+              <div style={{ color: 'var(--accent-green)', background: 'var(--accent-green-glow)', padding: '10px 14px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 500 }}>
+                {managerMessage}
+              </div>
+            )}
+            {managerError && (
+              <div style={{ color: 'var(--accent-red)', background: 'var(--accent-red-glow)', padding: '10px 14px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 500 }}>
+                {managerError}
+              </div>
+            )}
+
+            {/* Change PIN Form */}
+            <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
+                  Reset Register PIN (6 Digits)
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    pattern="\d*"
+                    maxLength={6}
+                    className="form-input"
+                    value={newPin}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, ''); // keep only numbers
+                      setNewPin(val);
+                    }}
+                    placeholder="Enter 6-digit PIN"
+                    required
+                    style={{ flexGrow: 1, padding: '8px' }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-success"
+                    style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                    disabled={newPin.length !== 6}
+                  >
+                    <ShieldCheck size={16} />
+                    <span>Save PIN</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {/* Guideline Violations List */}
+            <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', marginTop: '10px' }}>
+              <h4 style={{ 
+                fontFamily: 'var(--font-display)', 
+                fontWeight: 600, 
+                fontSize: '0.95rem', 
+                color: 'var(--text-primary)', 
+                marginBottom: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertTriangle size={16} className="text-danger" style={{ color: 'var(--accent-red)' }} />
+                  <span>Guideline Violations</span>
+                </span>
+                <span className="badge badge-danger" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                  {flaggedInstances.length} Total
+                </span>
+              </h4>
+
+              {loadingShifts ? (
+                <div style={{ display: 'flex', flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                  <div style={{ width: '24px', height: '24px', border: '2.5px solid var(--glass-border)', borderTopColor: 'var(--accent-red)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : flaggedInstances.length === 0 ? (
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: '32px 16px', 
+                  background: 'rgba(34, 197, 94, 0.03)', 
+                  border: '1px dashed rgba(34, 197, 94, 0.2)', 
+                  borderRadius: '8px',
+                  color: 'var(--accent-green)',
+                  fontSize: '0.85rem'
+                }}>
+                  <ShieldCheck size={28} style={{ marginBottom: '8px', opacity: 0.8 }} />
+                  <p style={{ margin: 0, fontWeight: 500 }}>No guideline violations recorded.</p>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', opacity: 0.75 }}>This staff member meets all standard guidelines.</p>
+                </div>
+              ) : (
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '12px', 
+                  overflowY: 'auto', 
+                  paddingRight: '4px',
+                  flexGrow: 1
+                }}>
+                  {flaggedInstances.map((item, idx) => (
+                    <div 
+                      key={`${item.shift_id}-${item.task_id}-${idx}`}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.02)',
+                        border: '1px solid rgba(239, 68, 68, 0.12)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ maxWidth: '70%' }}>
+                          <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)', display: 'block', wordBreak: 'break-word' }}>
+                            {item.task_name || item.name}
+                          </strong>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Category: {item.category || item.cat || 'General'}
+                          </span>
+                        </div>
+                        <span className="badge badge-open" style={{ fontSize: '0.6rem', padding: '1px 4px', textTransform: 'capitalize' }}>
+                          {item.shift_type}
+                        </span>
+                      </div>
+
+                      <div style={{ 
+                        background: 'rgba(0,0,0,0.01)', 
+                        padding: '8px 10px', 
+                        borderRadius: '6px', 
+                        borderLeft: '3px solid var(--accent-red)',
+                        fontSize: '0.8rem',
+                        color: 'var(--text-primary)',
+                        fontStyle: 'italic',
+                        wordBreak: 'break-word'
+                      }}>
+                        "{item.flag.reason}"
+                      </div>
+
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        fontSize: '0.7rem', 
+                        color: 'var(--text-muted)',
+                        marginTop: '2px'
+                      }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={10} />
+                          {new Date(item.shift_date).toLocaleDateString()}
+                        </span>
+                        <span>Flagged by {item.flag.flagged_by_name}</span>
+                      </div>
+
+                      {item.flag.photo && (
+                        <div style={{ marginTop: '4px' }}>
+                          <img 
+                            src={item.flag.photo} 
+                            alt="Audit proof" 
+                            style={{ 
+                              width: '60px', 
+                              height: '45px', 
+                              objectFit: 'cover', 
+                              borderRadius: '4px', 
+                              cursor: 'pointer',
+                              border: '1px solid var(--glass-border)',
+                              transition: 'transform 0.15s ease'
+                            }}
+                            onClick={() => setLightboxPhoto(item.flag.photo)}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Standard Add Employee View */}
+            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1.15rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '10px' }}>
+              Add New Employee
+            </h3>
+
+            {managerMessage && (
+              <div style={{ color: 'var(--accent-green)', background: 'var(--accent-green-glow)', padding: '10px 14px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 500 }}>
+                {managerMessage}
+              </div>
+            )}
+
+            {managerError && (
+              <div style={{ color: 'var(--accent-red)', background: 'var(--accent-red-glow)', padding: '10px 14px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 500 }}>
+                {managerError}
+              </div>
+            )}
+
+            <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Full Name</label>
                 <input
@@ -396,53 +653,105 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
                   <option value="manager">Manager (Admin Access)</option>
                 </select>
               </div>
-            </>
-          )}
 
-          <div className="form-group">
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {editingEmployee ? 'New Register PIN (6 Digits)' : 'Register PIN (6 Digits)'}
-            </label>
-            <input
-              type="text"
-              pattern="\d*"
-              maxLength={6}
-              className="form-input"
-              value={newPin}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, ''); // keep only numbers
-                setNewPin(val);
-              }}
-              placeholder="e.g. 123456"
-              required
-            />
-          </div>
+              <div className="form-group">
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Register PIN (6 Digits)</label>
+                <input
+                  type="text"
+                  pattern="\d*"
+                  maxLength={6}
+                  className="form-input"
+                  value={newPin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, ''); // keep only numbers
+                    setNewPin(val);
+                  }}
+                  placeholder="e.g. 123456"
+                  required
+                />
+              </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
-            <button
-              type="submit"
-              className="btn btn-success w-full"
-              style={{ padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              disabled={editingEmployee ? newPin.length !== 6 : (!newName.trim() || newPin.length !== 6)}
-            >
-              {editingEmployee ? <ShieldCheck size={18} /> : <Plus size={18} />}
-              <span>{editingEmployee ? 'Change PIN' : 'Add Employee'}</span>
-            </button>
-            {editingEmployee && (
               <button
-                type="button"
-                className="btn btn-secondary w-full"
-                style={{ padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                onClick={handleCancelEdit}
+                type="submit"
+                className="btn btn-success w-full"
+                style={{ padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '10px' }}
+                disabled={!newName.trim() || newPin.length !== 6}
               >
-                <X size={14} />
-                <span>Cancel</span>
+                <Plus size={18} />
+                <span>Add Employee</span>
               </button>
-            )}
-          </div>
-        </form>
+            </form>
+          </>
+        )}
       </div>
 
+      {/* Lightbox modal overlay */}
+      {lightboxPhoto && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            animation: 'fade-in 0.2s ease-out'
+          }}
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <div 
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxPhoto(null)}
+              style={{
+                position: 'absolute',
+                top: '-45px',
+                right: '0',
+                background: 'transparent',
+                border: 'none',
+                color: '#ffffff',
+                cursor: 'pointer',
+                padding: '8px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255,255,255,0.1)'
+              }}
+            >
+              <X size={20} />
+            </button>
+            <img 
+              src={lightboxPhoto} 
+              alt="Violation proof" 
+              style={{
+                maxWidth: '100%',
+                maxHeight: '80vh',
+                borderRadius: '8px',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+                objectFit: 'contain'
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
