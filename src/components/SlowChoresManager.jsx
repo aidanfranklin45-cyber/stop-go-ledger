@@ -1012,6 +1012,7 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                             key={chore.id} 
                             draggable
                             onDragStart={(e) => handleDragStart(e, chore.id, "unassigned")}
+                            onClick={() => handleStartEdit(chore)}
                             className="member-item" 
                             style={{ 
                               padding: '12px 16px', 
@@ -1019,7 +1020,7 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                               display: 'flex', 
                               justifyContent: 'space-between', 
                               alignItems: 'center',
-                              cursor: 'grab'
+                              cursor: 'pointer'
                             }}
                           >
                             <div style={{ textAlign: 'left', flexGrow: 1, paddingRight: '10px' }}>
@@ -1058,7 +1059,7 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                               <button
                                 type="button"
                                 className="btn btn-secondary"
-                                onClick={() => handleDeleteChore(chore.id, chore.name)}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteChore(chore.id, chore.name); }}
                                 style={{ padding: '6px', borderRadius: '50%', color: 'var(--accent-red)' }}
                                 aria-label="Delete chore"
                               >
@@ -1181,27 +1182,39 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
                                   {idx + 1}.
                                 </span>
-                                <input
-                                  type="text"
-                                  value={st}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setFormSubtasks(prev => prev.map((item, i) => i === idx ? val : item));
-                                  }}
-                                  style={{
-                                    border: 'none',
-                                    background: 'transparent',
-                                    fontSize: '0.78rem',
-                                    color: 'var(--text-primary)',
-                                    padding: '2px 4px',
-                                    width: '100%',
-                                    outline: 'none',
-                                    borderRadius: '4px',
-                                    transition: 'background-color 0.2s'
-                                  }}
-                                  onFocus={(e) => { e.target.style.backgroundColor = '#f0f0f5'; }}
-                                  onBlur={(e) => { e.target.style.backgroundColor = 'transparent'; }}
-                                />
+                                <textarea
+                                   rows={1}
+                                   value={st}
+                                   onChange={(e) => {
+                                     const val = e.target.value;
+                                     setFormSubtasks(prev => prev.map((item, i) => i === idx ? val : item));
+                                   }}
+                                   style={{
+                                     border: 'none',
+                                     background: 'transparent',
+                                     fontSize: '0.78rem',
+                                     color: 'var(--text-primary)',
+                                     padding: '2px 4px',
+                                     width: '100%',
+                                     outline: 'none',
+                                     borderRadius: '4px',
+                                     resize: 'none',
+                                     whiteSpace: 'pre-wrap',
+                                     wordBreak: 'break-word',
+                                     height: 'auto',
+                                     fontFamily: 'inherit',
+                                     transition: 'background-color 0.2s'
+                                   }}
+                                   onInput={(e) => {
+                                     e.target.style.height = 'auto';
+                                     e.target.style.height = e.target.scrollHeight + 'px';
+                                   }}
+                                   onFocus={(e) => { 
+                                     e.target.style.backgroundColor = '#f0f0f5'; 
+                                     e.target.style.height = e.target.scrollHeight + 'px';
+                                   }}
+                                   onBlur={(e) => { e.target.style.backgroundColor = 'transparent'; }}
+                                 />
                               </div>
                               <button
                                 type="button"

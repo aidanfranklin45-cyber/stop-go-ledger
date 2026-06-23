@@ -495,6 +495,9 @@ app.get("/slow-chores", async (req, res) => {
 
 app.post("/slow-chores", async (req, res) => {
   const chore = req.body;
+  if (!chore.id) {
+    chore.id = `SC_${Date.now()}`;
+  }
   try {
     await db.collection("slow_chores").doc(chore.id).set(chore);
     res.status(200).json(chore);

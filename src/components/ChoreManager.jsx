@@ -306,6 +306,7 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
               <div 
                 key={t.id} 
                 className="member-item" 
+                onClick={() => handleStartEdit(t)}
                 style={{ 
                   background: '#ffffff', 
                   borderColor: editingChore?.id === t.id ? 'var(--primary)' : 'rgba(15,23,42,0.06)',
@@ -313,7 +314,8 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  borderRadius: 'var(--radius-sm)'
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexGrow: 1 }}>
@@ -363,7 +365,7 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
 
                   <button
                     type="button"
-                    onClick={() => handleDeleteChore(t.id, t.name)}
+                    onClick={(e) => { e.stopPropagation(); handleDeleteChore(t.id, t.name); }}
                     style={{ 
                       background: 'transparent',
                       border: 'none',
@@ -457,8 +459,8 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
                         {idx + 1}.
                       </span>
-                      <input
-                        type="text"
+                      <textarea
+                        rows={1}
                         value={st}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -473,9 +475,21 @@ const ChoreManager = ({ onBack, defaultAuthenticated }) => {
                           width: '100%',
                           outline: 'none',
                           borderRadius: '4px',
+                          resize: 'none',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          height: 'auto',
+                          fontFamily: 'inherit',
                           transition: 'background-color 0.2s'
                         }}
-                        onFocus={(e) => { e.target.style.backgroundColor = '#f0f0f5'; }}
+                        onInput={(e) => {
+                          e.target.style.height = 'auto';
+                          e.target.style.height = e.target.scrollHeight + 'px';
+                        }}
+                        onFocus={(e) => { 
+                          e.target.style.backgroundColor = '#f0f0f5'; 
+                          e.target.style.height = e.target.scrollHeight + 'px';
+                        }}
                         onBlur={(e) => { e.target.style.backgroundColor = 'transparent'; }}
                       />
                     </div>

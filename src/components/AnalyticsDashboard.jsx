@@ -9,10 +9,14 @@ import {
   DollarSign, 
   CheckCircle2, 
   Activity,
-  Lock 
+  Lock,
+  Flag,
+  Clock,
+  User 
 } from 'lucide-react';
-import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin } from '../firebase';
+import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, updateTask } from '../firebase';
 import PinNumpad from './PinNumpad';
+import ChoreFlagModal from './ChoreFlagModal';
 
 const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
   // Authentication states
@@ -24,6 +28,72 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
   // Loading and data states
   const [loading, setLoading] = useState(false);
   const [shiftsDetail, setShiftsDetail] = useState([]);
+  const [goLiveDate, setGoLiveDate] = useState(() => localStorage.getItem('stop_go_go_live_date') || '');
+  const [flaggingChore, setFlaggingChore] = useState(null);
+
+  const getCategoryIcon = (category) => {
+    switch (category?.toLowerCase()) {
+      case 'equipment': return '⚙️';
+      case 'heavy clean': return '🧹';
+      case 'prep': return '🔪';
+      case 'sanitation': return '🧴';
+      case 'facilities': return '🏢';
+      case 'financial': return '💵';
+      case 'front of house': return '🍽️';
+      case 'food safety': return '🌡️';
+      case 'inventory': return '📦';
+      default: return '📋';
+    }
+  };
+
+  const handleFlagSave = async (flagData) => {
+    if (!flaggingChore) return;
+    const { chore, shiftId } = flaggingChore;
+    try {
+      const updatedShift = await updateTask(
+        shiftId,
+        chore.task_id,
+        chore.is_completed,
+        chore.completed_by_id,
+        chore.completed_by_name,
+        chore.subtasks || null,
+        flagData
+      );
+      if (updatedShift) {
+        setShiftsDetail(prev => prev.map(s => s.shift_id === updatedShift.shift_id ? updatedShift : s));
+      }
+      setFlaggingChore(null);
+    } catch (err) {
+      console.error("Failed to flag task:", err);
+      alert("Failed to flag chore.");
+    }
+  };
+
+  const handleFlagRemove = async (chore, shiftId, managerId, pin) => {
+    const isValid = await validateEmployeePin(managerId, pin);
+    if (!isValid) {
+      alert("Invalid manager PIN code.");
+      return;
+    }
+    
+    try {
+      const updatedShift = await updateTask(
+        shiftId,
+        chore.task_id,
+        chore.is_completed,
+        chore.completed_by_id,
+        chore.completed_by_name,
+        chore.subtasks || null,
+        'REMOVE'
+      );
+      if (updatedShift) {
+        setShiftsDetail(prev => prev.map(s => s.shift_id === updatedShift.shift_id ? updatedShift : s));
+      }
+    } catch (err) {
+      console.error("Failed to remove flag:", err);
+      alert("Failed to remove flag from chore.");
+    }
+  };
 
   // Load managers list on mount
   const loadManagers = useCallback(async () => {
@@ -119,10 +189,15 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
     return d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   };
 
+  // Filter shifts based on go-live date
+  const filteredShifts = goLiveDate 
+    ? shiftsDetail.filter(s => s.date >= goLiveDate)
+    : shiftsDetail;
+
   // 1. Overall Completion Rate
   let totalCompleted = 0;
   let totalTasks = 0;
-  shiftsDetail.forEach(s => {
+  filteredShifts.forEach(s => {
     totalCompleted += s.completed_count || 0;
     totalTasks += s.total_count || 0;
   });
@@ -130,7 +205,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
 
   // 2. Net Till Discrepancy
   let totalTillDiscrepancy = 0;
-  shiftsDetail.forEach(s => {
+  filteredShifts.forEach(s => {
     const amount = Number(s.till_discrepancy_amount || 0);
     if (s.till_status === 'over') {
       totalTillDiscrepancy += amount;
@@ -141,13 +216,16 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
 
   // 3. Shift Streak (consecutive 100% completion shifts, descending chronological order)
   let currentStreak = 0;
-  const chronShifts = [...shiftsDetail].sort((a, b) => {
+  const chronShifts = [...filteredShifts].sort((a, b) => {
     const timeA = new Date(a.date + 'T' + (a.shift_type === 'closing' ? '23:00' : '12:00'));
     const timeB = new Date(b.date + 'T' + (b.shift_type === 'closing' ? '23:00' : '12:00'));
     return timeB - timeA;
   });
   for (const s of chronShifts) {
-    const rate = s.total_count > 0 ? (s.completed_count / s.total_count) : 0;
+    if (!s.total_count || s.total_count === 0) {
+      continue;
+    }
+    const rate = s.completed_count / s.total_count;
     if (rate === 1 && s.status !== 'missed_cleanup') {
       currentStreak++;
     } else {
@@ -157,7 +235,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
 
   // 4. Top Performers (Tally tasks completed_by_name)
   const performerTally = {};
-  shiftsDetail.forEach(s => {
+  filteredShifts.forEach(s => {
     if (s.tasks) {
       Object.values(s.tasks).forEach(t => {
         if (t.is_completed && t.completed_by_name) {
@@ -173,7 +251,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
 
   // 5. Most Missed Chores
   const missedTally = {};
-  shiftsDetail.forEach(s => {
+  filteredShifts.forEach(s => {
     if (s.tasks) {
       Object.values(s.tasks).forEach(t => {
         if (t.missed || (!t.is_completed && s.status === 'missed_cleanup')) {
@@ -188,8 +266,26 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
     .slice(0, 5);
 
   // 6. Shift Type Breakdown
-  const openingShifts = shiftsDetail.filter(s => s.shift_type === 'opening');
-  const closingShifts = shiftsDetail.filter(s => s.shift_type === 'closing');
+  const openingShifts = filteredShifts.filter(s => s.shift_type === 'opening');
+  const closingShifts = filteredShifts.filter(s => s.shift_type === 'closing');
+
+  // 7. Completed Chores Feed (All completed tasks in filtered shifts, sorted descending by timestamp)
+  const completedChoresFeed = [];
+  filteredShifts.forEach(s => {
+    if (s.tasks) {
+      Object.values(s.tasks).forEach(t => {
+        if (t.is_completed) {
+          completedChoresFeed.push({
+            ...t,
+            shift_id: s.shift_id,
+            shift_date: s.date,
+            shift_type: s.shift_type
+          });
+        }
+      });
+    }
+  });
+  completedChoresFeed.sort((a, b) => new Date(b.timestamp || '1970-01-01') - new Date(a.timestamp || '1970-01-01'));
 
 
 
@@ -205,8 +301,10 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
     const day = String(d.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
     
-    const hasOpening = shiftsDetail.some(s => s.date === dateString && s.shift_type === 'opening');
-    const hasClosing = shiftsDetail.some(s => s.date === dateString && s.shift_type === 'closing');
+    if (goLiveDate && dateString < goLiveDate) continue;
+    
+    const hasOpening = filteredShifts.some(s => s.date === dateString && s.shift_type === 'opening');
+    const hasClosing = filteredShifts.some(s => s.date === dateString && s.shift_type === 'closing');
     
     if (!hasOpening || !hasClosing) {
       let missingLabel = "";
@@ -334,8 +432,94 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
             There are no submitted shift records in history to compile analytics from yet.
           </p>
         </div>
+      ) : filteredShifts.length === 0 ? (
+        <>
+          <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={18} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Exclude Shifts Before (Official Go-Live Date):</span>
+              </div>
+              <input
+                type="date"
+                className="form-input"
+                value={goLiveDate}
+                onChange={(e) => {
+                  setGoLiveDate(e.target.value);
+                  localStorage.setItem('stop_go_go_live_date', e.target.value);
+                }}
+                style={{ 
+                  padding: '6px 12px', 
+                  borderRadius: '8px', 
+                  border: '1px solid var(--glass-border)', 
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem',
+                  width: 'auto'
+                }}
+              />
+            </div>
+            {goLiveDate && (
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                onClick={() => {
+                  setGoLiveDate('');
+                  localStorage.removeItem('stop_go_go_live_date');
+                }}
+              >
+                Reset Filter
+              </button>
+            )}
+          </div>
+          <div className="glass-panel" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            <Activity size={48} style={{ color: 'var(--text-muted)', marginBottom: '16px', margin: '0 auto' }} />
+            <h3>No Shifts in Selected Range</h3>
+            <p style={{ fontSize: '0.9rem', marginTop: '6px' }}>
+              No submitted shift records were found on or after the selected Go-Live Date ({goLiveDate}).
+            </p>
+          </div>
+        </>
       ) : (
         <>
+          <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={18} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Exclude Shifts Before (Official Go-Live Date):</span>
+              </div>
+              <input
+                type="date"
+                className="form-input"
+                value={goLiveDate}
+                onChange={(e) => {
+                  setGoLiveDate(e.target.value);
+                  localStorage.setItem('stop_go_go_live_date', e.target.value);
+                }}
+                style={{ 
+                  padding: '6px 12px', 
+                  borderRadius: '8px', 
+                  border: '1px solid var(--glass-border)', 
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem',
+                  width: 'auto'
+                }}
+              />
+            </div>
+            {goLiveDate && (
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                onClick={() => {
+                  setGoLiveDate('');
+                  localStorage.removeItem('stop_go_go_live_date');
+                }}
+              >
+                Reset Filter
+              </button>
+            )}
+          </div>
           {/* Summary Stat Cards Row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             
@@ -399,7 +583,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
               </div>
               <div>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>Total Checklists</span>
-                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>{shiftsDetail.length} Shifts</span>
+                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>{filteredShifts.length} Shifts</span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
                   {openingShifts.length} Openings / {closingShifts.length} Closings
                 </span>
@@ -495,6 +679,176 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Completed Chores Activity Feed */}
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Clock size={20} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Chore Completion Log (Real-time Feed)</h3>
+              </div>
+              <span className="badge badge-submitted" style={{ fontSize: '0.75rem' }}>
+                {completedChoresFeed.length} Completions
+              </span>
+            </div>
+            
+            {completedChoresFeed.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '32px' }}>
+                No completed chores found in this period.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+                {completedChoresFeed.map((item, idx) => {
+                  const initial = item.completed_by_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '';
+                  return (
+                    <div 
+                      key={`${item.shift_id}-${item.task_id}-${idx}`} 
+                      className="member-item animate-fade-in"
+                      style={{ 
+                        background: item.flag ? 'rgba(239, 68, 68, 0.02)' : 'rgba(255, 255, 255, 0.3)', 
+                        borderColor: item.flag ? 'rgba(239, 68, 68, 0.2)' : 'rgba(15,23,42,0.06)',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                        {/* Task name & category */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '1.1rem' }}>{getCategoryIcon(item.category)}</span>
+                          <div>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {item.task_name}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                              Shift: {item.shift_date} ({item.shift_type === 'opening' ? 'Opening' : 'Closing'})
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Who and When */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ 
+                              width: '24px', 
+                              height: '24px', 
+                              borderRadius: '50%', 
+                              background: 'var(--primary-glow)', 
+                              color: 'var(--primary)', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              fontWeight: 700, 
+                              fontSize: '0.7rem' 
+                            }}>
+                              {initial}
+                            </div>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{item.completed_by_name}</span>
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)' }}>
+                            <Clock size={12} />
+                            <span style={{ fontSize: '0.75rem' }}>
+                              {item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                            </span>
+                          </div>
+
+                          {/* Flag Actions */}
+                          <div style={{ marginLeft: '8px' }}>
+                            {item.flag ? (
+                              <button
+                                type="button"
+                                className="btn"
+                                onClick={() => {
+                                  if (window.confirm(`Flagged by ${item.flag.flagged_by_name}: "${item.flag.reason}"\n\nDo you want to clear/resolve this flag?`)) {
+                                    const pinInput = window.prompt("Enter Manager PIN to resolve/clear flag:");
+                                    if (pinInput) {
+                                      const mgrId = allEmployees[0]?.employee_id || allEmployees[0]?.id;
+                                      if (mgrId) {
+                                        handleFlagRemove(item, item.shift_id, mgrId, pinInput);
+                                      } else {
+                                        alert("No managers loaded to verify PIN.");
+                                      }
+                                    }
+                                  }
+                                }}
+                                style={{
+                                  background: 'var(--accent-red-glow)',
+                                  border: '1px solid var(--accent-red)',
+                                  color: 'var(--accent-red)',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <Flag size={10} fill="currentColor" />
+                                <span>Flagged</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn"
+                                onClick={() => setFlaggingChore({ chore: item, shiftId: item.shift_id })}
+                                style={{
+                                  background: 'transparent',
+                                  border: '1px solid var(--glass-border)',
+                                  color: 'var(--text-secondary)',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '0.7rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.borderColor = 'var(--accent-red)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; }}
+                              >
+                                <Flag size={10} />
+                                <span>Flag</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Flag feedback block */}
+                      {item.flag && (
+                        <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.04)', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.08)', marginTop: '4px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            ⚠️ Flag details from manager:
+                          </span>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+                            "{item.flag.reason}" (Flagged by {item.flag.flagged_by_name} at {new Date(item.flag.flagged_at).toLocaleDateString()})
+                          </p>
+                          {item.flag.photo && (
+                            <div style={{ marginTop: '8px' }}>
+                              <img 
+                                src={item.flag.photo} 
+                                alt="Audit evidence" 
+                                style={{ maxHeight: '120px', maxWidth: '240px', objectFit: 'contain', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--glass-border)' }}
+                                onClick={() => {
+                                  const w = window.open();
+                                  w.document.write(`<img src="${item.flag.photo}" style="max-width:100%; max-height:100vh; display:block; margin:auto;" />`);
+                                }}
+                                title="Click to view full size"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Speed Audit & Missing Reports Grid */}
@@ -601,6 +955,15 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
               )}
             </div>
           </div>
+
+          {flaggingChore && (
+            <ChoreFlagModal
+              chore={flaggingChore.chore}
+              shiftId={flaggingChore.shiftId}
+              onClose={() => setFlaggingChore(null)}
+              onSave={handleFlagSave}
+            />
+          )}
         </>
       )}
 

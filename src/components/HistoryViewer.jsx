@@ -12,10 +12,12 @@ import {
   Check, 
   ArrowLeft,
   Trash2,
-  Lock
+  Lock,
+  Flag
 } from 'lucide-react';
-import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift, sendDiscordShiftDeleted } from '../firebase';
+import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift, sendDiscordShiftDeleted, updateTask } from '../firebase';
 import PinNumpad from './PinNumpad';
+import ChoreFlagModal from './ChoreFlagModal';
 
 const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onActiveShiftDeleted }) => {
   const [shifts, setShifts] = useState([]);
@@ -35,6 +37,58 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
   const [managers, setManagers] = useState([]);
   const [selectedManagerId, setSelectedManagerId] = useState(null);
   const [pinError, setPinError] = useState("");
+
+  const [flaggingTask, setFlaggingTask] = useState(null);
+
+  const handleFlagSave = async (flagData) => {
+    if (!selectedShift || !flaggingTask) return;
+    try {
+      const updatedShift = await updateTask(
+        selectedShift.shift_id,
+        flaggingTask.task_id,
+        flaggingTask.is_completed,
+        flaggingTask.completed_by_id,
+        flaggingTask.completed_by_name,
+        flaggingTask.subtasks || null,
+        flagData
+      );
+      if (updatedShift) {
+        setSelectedShift(updatedShift);
+        setShifts(prev => prev.map(s => s.shift_id === updatedShift.shift_id ? updatedShift : s));
+      }
+      setFlaggingTask(null);
+    } catch (err) {
+      console.error("Failed to flag task:", err);
+      alert("Failed to flag task in database.");
+    }
+  };
+
+  const handleFlagRemove = async (task, managerId, pin) => {
+    const isValid = await validateEmployeePin(managerId, pin);
+    if (!isValid) {
+      alert("Invalid manager PIN code.");
+      return;
+    }
+    
+    try {
+      const updatedShift = await updateTask(
+        selectedShift.shift_id,
+        task.task_id,
+        task.is_completed,
+        task.completed_by_id,
+        task.completed_by_name,
+        task.subtasks || null,
+        'REMOVE'
+      );
+      if (updatedShift) {
+        setSelectedShift(updatedShift);
+        setShifts(prev => prev.map(s => s.shift_id === updatedShift.shift_id ? updatedShift : s));
+      }
+    } catch (err) {
+      console.error("Failed to remove flag:", err);
+      alert("Failed to remove flag from task.");
+    }
+  };
 
   const loadManagers = useCallback(async () => {
     try {
@@ -603,7 +657,7 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                             <div 
                               key={t.task_id} 
                               className={`task-card ${t.is_completed ? 'completed' : t.missed ? 'missed' : ''}`}
-                              style={{ cursor: 'default' }}
+                              style={{ cursor: 'default', position: 'relative', paddingRight: t.is_completed ? '80px' : '12px' }}
                             >
                               <div className="task-checkbox">
                                 {t.is_completed && <Check size={14} strokeWidth={3} />}
@@ -633,7 +687,92 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                                     </div>
                                   </div>
                                 )}
+
+                                {t.is_completed && t.flag && (
+                                  <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <Flag size={12} fill="currentColor" />
+                                      <span>Flagged by {t.flag.flagged_by_name}</span>
+                                    </div>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+                                      "{t.flag.reason}"
+                                    </p>
+                                    {t.flag.photo && (
+                                      <img 
+                                        src={t.flag.photo} 
+                                        alt="Audit proof" 
+                                        style={{ width: '100%', maxHeight: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '6px', cursor: 'pointer' }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const w = window.open();
+                                          w.document.write(`<img src="${t.flag.photo}" style="max-width:100%; max-height:100vh; display:block; margin:auto;" />`);
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                )}
                               </div>
+
+                              {t.is_completed && (
+                                <div style={{ position: 'absolute', top: '12px', right: '12px' }}>
+                                  {t.flag ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (window.confirm(`Flagged by ${t.flag.flagged_by_name}: "${t.flag.reason}"\n\nDo you want to clear/resolve this flag?`)) {
+                                          const pinInput = window.prompt("Enter Manager PIN to resolve/clear flag:");
+                                          if (pinInput) {
+                                            const mgrId = allEmployees[0]?.employee_id || allEmployees[0]?.id;
+                                            if (mgrId) {
+                                              handleFlagRemove(t, mgrId, pinInput);
+                                            } else {
+                                              alert("No managers loaded to verify PIN.");
+                                            }
+                                          }
+                                        }
+                                      }}
+                                      style={{
+                                        background: 'var(--accent-red-glow)',
+                                        border: '1px solid var(--accent-red)',
+                                        color: 'var(--accent-red)',
+                                        borderRadius: '4px',
+                                        padding: '2px 6px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}
+                                    >
+                                      <Flag size={10} fill="currentColor" />
+                                      <span>Flagged</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setFlaggingTask(t)}
+                                      style={{
+                                        background: 'transparent',
+                                        border: '1px solid var(--glass-border)',
+                                        color: 'var(--text-secondary)',
+                                        borderRadius: '4px',
+                                        padding: '2px 6px',
+                                        fontSize: '0.7rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}
+                                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.borderColor = 'var(--accent-red)'; }}
+                                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; }}
+                                    >
+                                      <Flag size={10} />
+                                      <span>Flag</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -643,6 +782,15 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                 })}
               </div>
             </div>
+
+            {flaggingTask && (
+              <ChoreFlagModal
+                chore={flaggingTask}
+                shiftId={selectedShift.shift_id}
+                onClose={() => setFlaggingTask(null)}
+                onSave={handleFlagSave}
+              />
+            )}
 
           </div>
         )}

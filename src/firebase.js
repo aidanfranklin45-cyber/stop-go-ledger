@@ -425,7 +425,7 @@ export async function startShift(shiftId, shiftType, date, activeTeamPids) {
   return shiftData;
 }
 
-export async function updateTask(shiftId, taskId, isCompleted, completedById, completedByName, subtasks = null) {
+export async function updateTask(shiftId, taskId, isCompleted, completedById, completedByName, subtasks = null, flag = null) {
   if (isLiveMode()) {
     const payload = {
       is_completed: isCompleted,
@@ -433,6 +433,13 @@ export async function updateTask(shiftId, taskId, isCompleted, completedById, co
       completed_by_name: completedByName
     };
     if (subtasks !== null) payload.subtasks = subtasks;
+    if (flag !== null) {
+      if (flag === 'REMOVE') {
+        payload.flag = null;
+      } else {
+        payload.flag = flag;
+      }
+    }
 
     const res = await fetch(`${API_URL}/shifts/${shiftId}/tasks/${taskId}`, {
       method: "PUT",
@@ -452,6 +459,13 @@ export async function updateTask(shiftId, taskId, isCompleted, completedById, co
     shift.tasks[taskId].timestamp = isCompleted ? new Date().toISOString() : null;
     if (subtasks !== null) {
       shift.tasks[taskId].subtasks = subtasks;
+    }
+    if (flag !== null) {
+      if (flag === 'REMOVE') {
+        delete shift.tasks[taskId].flag;
+      } else {
+        shift.tasks[taskId].flag = flag;
+      }
     }
 
     let completedCount = 0;
@@ -695,18 +709,18 @@ export async function getSlowChores() {
 }
 
 export async function addSlowChore(chore) {
+  const newId = chore.id || `SC_${Date.now()}`;
   if (isLiveMode()) {
     const res = await fetch(`${API_URL}/slow-chores`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(chore)
+      body: JSON.stringify({ ...chore, id: newId })
     });
     if (!res.ok) throw new Error("Failed to add slow chore via API");
     return await res.json();
   }
 
   const list = await getSlowChores();
-  const newId = `SC_${Date.now()}`;
   const data = {
     id: newId,
     name: chore.name,
