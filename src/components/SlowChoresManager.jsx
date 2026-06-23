@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   ArrowLeft, 
   Clock, 
-  Plus, 
   Check, 
   Trash2, 
   Edit, 
@@ -10,7 +9,6 @@ import {
   ShieldCheck, 
   Calendar,
   AlertTriangle,
-  User,
   Settings,
   X
 } from 'lucide-react';
@@ -25,7 +23,7 @@ import {
 } from '../firebase';
 import PinNumpad from './PinNumpad';
 
-const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMode = 'checklist', defaultAuthenticated }) => {
+const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticated }) => {
   // Navigation tab: 'checklist' or 'scheduler'
   const [activeSubTab, setActiveSubTab] = useState(viewMode);
 
@@ -34,7 +32,6 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
   const [allEmployees, setAllEmployees] = useState([]);
   const [selectedEntryManagerId, setSelectedEntryManagerId] = useState(null);
   const [entryPinError, setEntryPinError] = useState("");
-  const [pinError, setPinError] = useState("");
 
   // Data states
   const [slowChoresList, setSlowChoresList] = useState([]);
@@ -111,7 +108,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
       } else {
         setEntryPinError("Invalid manager PIN code.");
       }
-    } catch (err) {
+    } catch {
       setEntryPinError("PIN verification error.");
     }
   };
@@ -333,7 +330,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
   };
 
   // Helper: get the first due date matching days_of_week on or after created_at
-  const getFirstDueDate = (chore) => {
+  const getFirstDueDate = useCallback((chore) => {
     if (!chore.days_of_week || chore.days_of_week.length === 0) {
       return null;
     }
@@ -350,15 +347,15 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
       }
     }
     return null;
-  };
+  }, []);
 
   // Helper: check if due
-  const isDue = (chore) => {
+  const isDue = useCallback((chore, nowTime, todayStart) => {
     if (!chore.days_of_week || chore.days_of_week.length === 0) {
       if (!chore.last_completed_at) return true;
       const d = parseDate(chore.last_completed_at);
       if (!d) return true;
-      const elapsedMs = Date.now() - d.getTime();
+      const elapsedMs = nowTime - d.getTime();
       const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24);
       return elapsedDays >= chore.frequency_days;
     }
@@ -366,7 +363,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
     if (chore.last_completed_at) {
       const d = parseDate(chore.last_completed_at);
       if (!d) return true;
-      const elapsedMs = Date.now() - d.getTime();
+      const elapsedMs = nowTime - d.getTime();
       const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24);
       return elapsedDays >= chore.frequency_days;
     }
@@ -374,26 +371,18 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
     const firstDue = getFirstDueDate(chore);
     if (!firstDue) return true;
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
     return todayStart.getTime() >= firstDue.getTime();
-  };
+  }, [getFirstDueDate]);
 
   // Helper: calculate time remaining or overdue
-  const getScheduleLabel = (chore) => {
-    const formatFrequency = (daysVal) => {
-      if (daysVal === 1) return "every day";
-      return `every ${daysVal} days`;
-    };
-
+  const getScheduleLabel = useCallback((chore, nowTime, todayStart) => {
     if (!chore.days_of_week || chore.days_of_week.length === 0) {
       if (!chore.last_completed_at) return "Never completed (Needs Attention)";
       const d = parseDate(chore.last_completed_at);
       if (!d) return "Never completed (Needs Attention)";
       
       const nextDueTime = d.getTime() + (chore.frequency_days * 24 * 60 * 60 * 1000);
-      const diffMs = nextDueTime - Date.now();
+      const diffMs = nextDueTime - nowTime;
       
       if (diffMs <= 0) {
         const overdueDays = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
@@ -416,9 +405,6 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
       const firstDue = getFirstDueDate(chore);
       if (!firstDue) return "";
 
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-
       const diffMs = firstDue.getTime() - todayStart.getTime();
       const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
@@ -440,7 +426,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
     if (!d) return "";
 
     const nextDueTime = d.getTime() + (chore.frequency_days * 24 * 60 * 60 * 1000);
-    const diffMs = nextDueTime - Date.now();
+    const diffMs = nextDueTime - nowTime;
 
     if (diffMs <= 0) {
       const overdueDays = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
@@ -456,10 +442,22 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
         return `Due in ${remainingHours} hour${remainingHours > 1 ? 's' : ''}`;
       }
     }
-  };
+  }, [getFirstDueDate]);
 
-  const dueChores = slowChoresList.filter(c => isDue(c));
-  const upcomingChores = slowChoresList.filter(c => !isDue(c));
+  const [nowTimeForDue] = useState(() => Date.now());
+  const todayStartForDue = useMemo(() => {
+    const d = new Date(nowTimeForDue);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [nowTimeForDue]);
+
+  const dueChores = useMemo(() => {
+    return slowChoresList.filter(c => isDue(c, nowTimeForDue, todayStartForDue));
+  }, [slowChoresList, nowTimeForDue, todayStartForDue, isDue]);
+
+  const upcomingChores = useMemo(() => {
+    return slowChoresList.filter(c => !isDue(c, nowTimeForDue, todayStartForDue));
+  }, [slowChoresList, nowTimeForDue, todayStartForDue, isDue]);
 
   // --- RENDER ---
   return (
@@ -560,7 +558,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
                       <div>
                         <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>{chore.name}</h4>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                          <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>{getScheduleLabel(chore)}</span>
+                          <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>{getScheduleLabel(chore, nowTimeForDue, todayStartForDue)}</span>
                           
                           {totalSubtasksCount > 0 && (
                             <>
@@ -630,7 +628,7 @@ const SlowChoresManager = ({ onBack, activeTeam = [], selectedOperatorId, viewMo
                     <div>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>{chore.name}</h4>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                        <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{getScheduleLabel(chore)}</span>
+                        <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{getScheduleLabel(chore, nowTimeForDue, todayStartForDue)}</span>
                         {chore.subtasks && chore.subtasks.length > 0 && (
                           <>
                             <span>•</span>
