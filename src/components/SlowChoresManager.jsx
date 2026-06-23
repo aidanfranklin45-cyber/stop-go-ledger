@@ -1177,13 +1177,36 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px', maxHeight: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.02)', padding: '8px', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
                           {formSubtasks.map((st, idx) => (
                             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.04)' }}>
-                              <span style={{ fontSize: '0.78rem', color: 'var(--text-primary)', wordBreak: 'break-all' }}>
-                                {idx + 1}. {st}
-                              </span>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexGrow: 1 }}>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
+                                  {idx + 1}.
+                                </span>
+                                <input
+                                  type="text"
+                                  value={st}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setFormSubtasks(prev => prev.map((item, i) => i === idx ? val : item));
+                                  }}
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    fontSize: '0.78rem',
+                                    color: 'var(--text-primary)',
+                                    padding: '2px 4px',
+                                    width: '100%',
+                                    outline: 'none',
+                                    borderRadius: '4px',
+                                    transition: 'background-color 0.2s'
+                                  }}
+                                  onFocus={(e) => { e.target.style.backgroundColor = '#f0f0f5'; }}
+                                  onBlur={(e) => { e.target.style.backgroundColor = 'transparent'; }}
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setFormSubtasks(prev => prev.filter((_, i) => i !== idx))}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', padding: '2px' }}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', padding: '2px', marginLeft: '6px' }}
                               >
                                 <X size={12} />
                               </button>
