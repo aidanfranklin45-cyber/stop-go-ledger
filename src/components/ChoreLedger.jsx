@@ -16,7 +16,7 @@ import {
   AlertTriangle,
   X 
 } from 'lucide-react';
-import { updateShiftNotes } from '../firebase';
+import { updateShiftNotes, getEmployeeAvatarStyle } from '../firebase';
 
 const CATEGORIES = [
   "Equipment", 
@@ -180,13 +180,14 @@ const ChoreLedger = ({
                       width: '20px', 
                       height: '20px', 
                       borderRadius: '50%', 
-                      background: isSelected ? '#ffffff' : 'var(--primary)',
-                      color: isSelected ? 'var(--primary)' : '#ffffff',
+                      background: getEmployeeAvatarStyle(name).backgroundColor,
+                      color: getEmployeeAvatarStyle(name).color,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '0.65rem',
-                      fontWeight: 700
+                      fontWeight: 700,
+                      border: isSelected ? '1px solid #ffffff' : 'none'
                     }}
                   >
                     {initials}

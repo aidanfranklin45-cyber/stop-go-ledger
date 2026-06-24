@@ -1123,3 +1123,69 @@ export async function seedTestScenario(shiftId, shiftType, date) {
   localStorage.setItem(MOCK_KEY_SHIFTS, JSON.stringify(shifts));
   return shiftData;
 }
+
+export function getEmployeeAvatarStyle(name) {
+  if (!name) return { backgroundColor: 'var(--primary)', color: '#ffffff' };
+  
+  const clean = name.toLowerCase().trim();
+  
+  if (clean.includes("aidan") || clean.includes("gena")) {
+    return { backgroundColor: "#26DE81", color: "#000000" }; // Neon Green
+  }
+  if (clean.includes("angel")) {
+    return { backgroundColor: "#E29393", color: "#ffffff" }; // Rose
+  }
+  if (clean.includes("bailey")) {
+    return { backgroundColor: "#6C9B50", color: "#ffffff" }; // Muted Green
+  }
+  if (clean.includes("christian")) {
+    return { backgroundColor: "#4A86E8", color: "#ffffff" }; // Soft Blue
+  }
+  if (clean.includes("esmeralda") || clean.includes("esmerelda")) {
+    return { backgroundColor: "#E84393", color: "#ffffff" }; // Magenta/Fuchsia
+  }
+  if (clean.includes("madeline") || clean.includes("mattie")) {
+    return { backgroundColor: "#F9CB9C", color: "#000000" }; // Peach
+  }
+  if (clean.includes("kayla")) {
+    return { backgroundColor: "#FFEB3B", color: "#000000" }; // Bright Yellow
+  }
+  if (clean.includes("alexandra") || clean.includes("alex")) {
+    return { backgroundColor: "#8E7CC3", color: "#ffffff" }; // Purple
+  }
+  if (clean.includes("dora")) {
+    return { backgroundColor: "#FF9900", color: "#000000" }; // Orange
+  }
+  if (clean.includes("lyla")) {
+    return { backgroundColor: "#B7B7B7", color: "#000000" }; // Gray
+  }
+  if (clean.includes("adley")) {
+    return { backgroundColor: "#F1C232", color: "#000000" }; // Gold
+  }
+  if (clean.includes("laney")) {
+    return { backgroundColor: "#A64D79", color: "#ffffff" }; // Plum
+  }
+  if (clean.includes("addie")) {
+    return { backgroundColor: "#9FC5E8", color: "#000000" }; // Ice Blue
+  }
+  if (clean.includes("natalie")) {
+    return { backgroundColor: "#FF3838", color: "#ffffff" }; // Bright Red
+  }
+  if (clean.includes("karen")) {
+    return { backgroundColor: "#B6D7A8", color: "#000000" }; // Soft Sage
+  }
+  if (clean.includes("audrey")) {
+    return { backgroundColor: "#C05030", color: "#ffffff" }; // Terracotta/Rust
+  }
+  if (clean.includes("keali")) {
+    return { backgroundColor: "#1ABC9C", color: "#ffffff" }; // Teal/Turquoise
+  }
+
+  // Fallback hash-based color for any other employees
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = clean.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash % 360);
+  return { backgroundColor: `hsl(${hue}, 65%, 45%)`, color: '#ffffff' };
+}

@@ -13,7 +13,7 @@ import {
   Flag,
   AlertTriangle
 } from 'lucide-react';
-import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin, getSubmittedShifts, getActiveShift } from '../firebase';
+import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin, getSubmittedShifts, getActiveShift, getEmployeeAvatarStyle } from '../firebase';
 import PinNumpad from './PinNumpad';
 
 const StaffManager = ({ onBack, defaultAuthenticated }) => {
@@ -348,11 +348,12 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
                       width: '36px', 
                       height: '36px', 
                       borderRadius: '50%', 
-                      background: isSelected ? 'linear-gradient(135deg, var(--primary), var(--secondary))' : 'var(--glass-bg)',
-                      border: '1px solid var(--glass-border)',
-                      color: isSelected ? '#ffffff' : 'var(--text-secondary)', 
+                      background: getEmployeeAvatarStyle(emp.employee_name).backgroundColor,
+                      color: getEmployeeAvatarStyle(emp.employee_name).color,
+                      border: isSelected ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
                       fontSize: '0.85rem', 
-                      fontWeight: 'bold' 
+                      fontWeight: 'bold',
+                      boxShadow: isSelected ? '0 0 8px rgba(79, 70, 229, 0.3)' : 'none'
                     }}>
                       {initials}
                     </div>

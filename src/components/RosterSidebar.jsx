@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2, UserPlus } from 'lucide-react';
 import PinNumpad from './PinNumpad';
+import { getEmployeeAvatarStyle } from '../firebase';
 
 const RosterSidebar = ({
   activeTeam = [],
@@ -105,7 +106,13 @@ const RosterSidebar = ({
             return (
               <div key={id} className="member-item">
                 <div className="member-info">
-                  <div className="member-avatar">
+                  <div 
+                    className="member-avatar"
+                    style={{
+                      background: getEmployeeAvatarStyle(name).backgroundColor,
+                      color: getEmployeeAvatarStyle(name).color
+                    }}
+                  >
                     {getInitials(name)}
                   </div>
                   <div>
@@ -216,7 +223,13 @@ const RosterSidebar = ({
                           }}
                         >
                           <div className="member-info">
-                            <div className="member-avatar">
+                            <div 
+                              className="member-avatar"
+                              style={{
+                                background: getEmployeeAvatarStyle(name).backgroundColor,
+                                color: getEmployeeAvatarStyle(name).color
+                              }}
+                            >
                               {getInitials(name)}
                             </div>
                             <div>
