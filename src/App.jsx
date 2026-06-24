@@ -30,7 +30,8 @@ import {
   seedTestScenario,
   sendDiscordShiftStarted,
   sendDiscordShiftArchived,
-  sendDiscordErrorNotification
+  sendDiscordErrorNotification,
+  getEmployeeAvatarStyle
 } from './firebase';
 
 import PinNumpad from './components/PinNumpad';
@@ -995,7 +996,16 @@ function App() {
                       className={`employee-login-btn ${isCheckedIn ? 'selected' : ''}`}
                       onClick={() => handleSelectEmployeeForInit(emp)}
                     >
-                      <div className="member-avatar" style={{ width: '48px', height: '48px', fontSize: '1rem', background: isCheckedIn ? 'var(--accent-green)' : 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
+                      <div 
+                        className="member-avatar" 
+                        style={{ 
+                          width: '48px', 
+                          height: '48px', 
+                          fontSize: '1rem', 
+                          background: isCheckedIn ? 'var(--accent-green)' : getEmployeeAvatarStyle(emp.employee_name, emp.color).backgroundColor,
+                          color: isCheckedIn ? '#ffffff' : getEmployeeAvatarStyle(emp.employee_name, emp.color).color
+                        }}
+                      >
                         {isCheckedIn ? '✓' : emp.employee_name.split(' ').map(n => n[0]).join('')}
                       </div>
                       <span className="member-name">{emp.employee_name}</span>

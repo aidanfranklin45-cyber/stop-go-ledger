@@ -109,8 +109,8 @@ const RosterSidebar = ({
                   <div 
                     className="member-avatar"
                     style={{
-                      background: getEmployeeAvatarStyle(name).backgroundColor,
-                      color: getEmployeeAvatarStyle(name).color
+                      background: getEmployeeAvatarStyle(name, emp.color).backgroundColor,
+                      color: getEmployeeAvatarStyle(name, emp.color).color
                     }}
                   >
                     {getInitials(name)}
@@ -226,8 +226,8 @@ const RosterSidebar = ({
                             <div 
                               className="member-avatar"
                               style={{
-                                background: getEmployeeAvatarStyle(name).backgroundColor,
-                                color: getEmployeeAvatarStyle(name).color
+                                background: getEmployeeAvatarStyle(name, emp.color).backgroundColor,
+                                color: getEmployeeAvatarStyle(name, emp.color).color
                               }}
                             >
                               {getInitials(name)}

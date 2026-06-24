@@ -13,7 +13,7 @@ import {
   Flag,
   AlertTriangle
 } from 'lucide-react';
-import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin, getSubmittedShifts, getActiveShift, getEmployeeAvatarStyle } from '../firebase';
+import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin, updateEmployeeColor, getSubmittedShifts, getActiveShift, getEmployeeAvatarStyle } from '../firebase';
 import PinNumpad from './PinNumpad';
 
 const StaffManager = ({ onBack, defaultAuthenticated }) => {
@@ -348,8 +348,8 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
                       width: '36px', 
                       height: '36px', 
                       borderRadius: '50%', 
-                      background: getEmployeeAvatarStyle(emp.employee_name).backgroundColor,
-                      color: getEmployeeAvatarStyle(emp.employee_name).color,
+                      background: getEmployeeAvatarStyle(emp.employee_name, emp.color).backgroundColor,
+                      color: getEmployeeAvatarStyle(emp.employee_name, emp.color).color,
                       border: isSelected ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
                       fontSize: '0.85rem', 
                       fontWeight: 'bold',
@@ -480,6 +480,93 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
                 </div>
               </div>
             </form>
+
+            {/* Color Picker */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Roster / Schedule Color
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                {[
+                  { name: "Neon Green", hex: "#26DE81" },
+                  { name: "Rose Pink", hex: "#E29393" },
+                  { name: "Olive Green", hex: "#6C9B50" },
+                  { name: "Soft Blue", hex: "#4A86E8" },
+                  { name: "Fuchsia", hex: "#E84393" },
+                  { name: "Peach", hex: "#F9CB9C" },
+                  { name: "Bright Yellow", hex: "#FFEB3B" },
+                  { name: "Purple", hex: "#8E7CC3" },
+                  { name: "Orange", hex: "#FF9900" },
+                  { name: "Gray", hex: "#B7B7B7" },
+                  { name: "Gold", hex: "#F1C232" },
+                  { name: "Plum", hex: "#A64D79" },
+                  { name: "Ice Blue", hex: "#9FC5E8" },
+                  { name: "Bright Red", hex: "#FF3838" },
+                  { name: "Soft Sage", hex: "#B6D7A8" },
+                  { name: "Terracotta", hex: "#C05030" },
+                  { name: "Teal", hex: "#1ABC9C" }
+                ].map(c => {
+                  const isCurrent = (editingEmployee.color || '').toUpperCase() === c.hex.toUpperCase() || 
+                    (!editingEmployee.color && getEmployeeAvatarStyle(editingEmployee.employee_name).backgroundColor.toUpperCase() === c.hex.toUpperCase());
+                  return (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await updateEmployeeColor(editingEmployee.employee_id, c.hex);
+                          setManagerMessage(`Updated color for ${editingEmployee.employee_name}.`);
+                          setEditingEmployee(prev => ({ ...prev, color: c.hex }));
+                          await loadData();
+                        } catch (err) {
+                          setManagerError("Failed to update employee color.");
+                        }
+                      }}
+                      style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '50%',
+                        backgroundColor: c.hex,
+                        border: isCurrent ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
+                        cursor: 'pointer',
+                        transform: isCurrent ? 'scale(1.15)' : 'scale(1)',
+                        transition: 'transform 0.1s ease',
+                        boxShadow: isCurrent ? '0 0 6px rgba(79, 70, 229, 0.5)' : 'none'
+                      }}
+                      title={c.name}
+                    />
+                  );
+                })}
+                
+                {/* Custom Color input */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px' }}>
+                  <input
+                    type="color"
+                    value={editingEmployee.color || getEmployeeAvatarStyle(editingEmployee.employee_name).backgroundColor}
+                    onChange={async (e) => {
+                      const newColor = e.target.value;
+                      try {
+                        await updateEmployeeColor(editingEmployee.employee_id, newColor);
+                        setEditingEmployee(prev => ({ ...prev, color: newColor }));
+                        await loadData();
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }}
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      padding: 0,
+                      background: 'none'
+                    }}
+                    title="Choose Custom Color"
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Guideline Violations List */}
             <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', marginTop: '10px' }}>

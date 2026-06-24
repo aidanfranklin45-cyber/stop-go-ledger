@@ -355,6 +355,27 @@ export async function updateEmployeePin(employeeId, newPin) {
   return false;
 }
 
+export async function updateEmployeeColor(employeeId, color) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/employees/${employeeId}/color`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color })
+    });
+    if (!res.ok) throw new Error("Failed to update employee color via API");
+    return true;
+  }
+
+  const list = await getEmployees();
+  const idx = list.findIndex(e => e.employee_id === employeeId);
+  if (idx !== -1) {
+    list[idx].color = color;
+    localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
+    return true;
+  }
+  return false;
+}
+
 function enrichShiftCounts(shift) {
   if (shift && shift.tasks) {
     const tasksArray = Object.values(shift.tasks);
@@ -1124,7 +1145,22 @@ export async function seedTestScenario(shiftId, shiftType, date) {
   return shiftData;
 }
 
-export function getEmployeeAvatarStyle(name) {
+function getContrastColor(hexColor) {
+  if (!hexColor || hexColor.length < 6) return '#ffffff';
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return '#ffffff';
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (yiq >= 128) ? '#000000' : '#ffffff';
+}
+
+export function getEmployeeAvatarStyle(name, customColor = null) {
+  if (customColor) {
+    return { backgroundColor: customColor, color: getContrastColor(customColor) };
+  }
+
   if (!name) return { backgroundColor: 'var(--primary)', color: '#ffffff' };
   
   const clean = name.toLowerCase().trim();

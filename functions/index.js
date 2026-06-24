@@ -610,6 +610,17 @@ app.put("/employees/:id/pin", async (req, res) => {
   }
 });
 
+app.put("/employees/:id/color", async (req, res) => {
+  const { id } = req.params;
+  const { color } = req.body;
+  try {
+    await db.collection("employees").doc(id).update({ color });
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/shifts/:id/seed", async (req, res) => {
   const { id } = req.params;
   const { shiftType, date } = req.body;
