@@ -73,7 +73,6 @@ function App() {
 
   // --- State 01: Setup Roster state ---
   const [initTeamPids, setInitTeamPids] = useState([]);
-  const [selectedInitEmployee, setSelectedInitEmployee] = useState(null);
   const [initShiftType, setInitShiftType] = useState('opening');
   const [initDate, setInitDate] = useState(() => {
     const d = new Date();
@@ -162,20 +161,8 @@ function App() {
       // Toggle off directly if already in team
       setInitTeamPids(prev => prev.filter(pid => pid !== emp.employee_id));
     } else {
-      // Prompt for PIN to add
-      setSelectedInitEmployee(emp);
-    }
-  };
-
-  const handleInitEmployeePinComplete = async (pin) => {
-    if (!selectedInitEmployee) return;
-    const isValid = await validateEmployeePin(selectedInitEmployee.employee_id, pin);
-    if (isValid) {
-      setInitTeamPids(prev => [...prev, selectedInitEmployee.employee_id]);
-      setSelectedInitEmployee(null);
-      setAppError(null);
-    } else {
-      setAppError(`Incorrect PIN code for ${selectedInitEmployee.employee_name}.`);
+      // Toggle on directly without PIN
+      setInitTeamPids(prev => [...prev, emp.employee_id]);
     }
   };
 
@@ -327,10 +314,9 @@ function App() {
     }
   };
 
-  const handleAddMemberToActiveRoster = async (empId, pin) => {
+  const handleAddMemberToActiveRoster = async (empId) => {
     if (!currentShift) return false;
-    const isValid = await validateEmployeePin(empId, pin);
-    if (isValid) {
+    try {
       const newPids = [...currentShift.active_team_pids, empId];
       const updated = await updateShiftRoster(currentShift.shift_id, newPids);
       if (updated) {
@@ -343,7 +329,9 @@ function App() {
       }
       setAppError(null);
       return true;
-    } else {
+    } catch (err) {
+      console.error(err);
+      setAppError("Failed to add member to shift roster.");
       return false;
     }
   };
@@ -870,7 +858,7 @@ function App() {
           selectedOperatorId={selectedOperatorId} 
           viewMode="checklist"
         />
-      ) : appError && !selectedInitEmployee ? (
+      ) : appError ? (
         <div className="glass-panel animate-fade-in" style={{ padding: '24px', textAlign: 'center', maxWidth: '500px', margin: '40px auto', borderLeft: '4px solid var(--accent-red)' }}>
           <h3 style={{ color: 'var(--accent-red)', marginBottom: '8px', fontSize: '1.2rem' }}>Operational Error</h3>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>{appError}</p>
@@ -974,49 +962,38 @@ function App() {
             />
             <h2 style={{ fontSize: '1.4rem', marginBottom: '8px', textAlign: 'center' }}>Who is working this shift?</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '32px', fontSize: '0.9rem', textAlign: 'center' }}>
-              Tap each active worker name card and verify their PIN code to build the dynamic roster.
+              Tap each active worker name card to build the dynamic roster.
             </p>
 
-            {selectedInitEmployee ? (
-              <div style={{ maxWidth: '340px', margin: '0 auto' }}>
-                <PinNumpad 
-                  title={`Enter PIN code for ${selectedInitEmployee.employee_name}`}
-                  onPinComplete={handleInitEmployeePinComplete}
-                  onCancel={() => setSelectedInitEmployee(null)}
-                  error={appError}
-                />
-              </div>
-            ) : (
-              <div className="employee-login-grid">
-                {allEmployees.map(emp => {
-                  const isCheckedIn = initTeamPids.includes(emp.employee_id);
-                  return (
-                    <button
-                      key={emp.employee_id}
-                      className={`employee-login-btn ${isCheckedIn ? 'selected' : ''}`}
-                      onClick={() => handleSelectEmployeeForInit(emp)}
+            <div className="employee-login-grid">
+              {allEmployees.map(emp => {
+                const isCheckedIn = initTeamPids.includes(emp.employee_id);
+                return (
+                  <button
+                    key={emp.employee_id}
+                    className={`employee-login-btn ${isCheckedIn ? 'selected' : ''}`}
+                    onClick={() => handleSelectEmployeeForInit(emp)}
+                  >
+                    <div 
+                      className="member-avatar" 
+                      style={{ 
+                        width: '48px', 
+                        height: '48px', 
+                        fontSize: '1rem', 
+                        background: isCheckedIn ? 'var(--accent-green)' : getEmployeeAvatarStyle(emp.employee_name, emp.color).backgroundColor,
+                        color: isCheckedIn ? '#ffffff' : getEmployeeAvatarStyle(emp.employee_name, emp.color).color
+                      }}
                     >
-                      <div 
-                        className="member-avatar" 
-                        style={{ 
-                          width: '48px', 
-                          height: '48px', 
-                          fontSize: '1rem', 
-                          background: isCheckedIn ? 'var(--accent-green)' : getEmployeeAvatarStyle(emp.employee_name, emp.color).backgroundColor,
-                          color: isCheckedIn ? '#ffffff' : getEmployeeAvatarStyle(emp.employee_name, emp.color).color
-                        }}
-                      >
-                        {isCheckedIn ? '✓' : emp.employee_name.split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <span className="member-name">{emp.employee_name}</span>
-                      <span className="badge badge-pending" style={{ fontSize: '0.65rem' }}>
-                        {emp.role}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      {isCheckedIn ? '✓' : emp.employee_name.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <span className="member-name">{emp.employee_name}</span>
+                    <span className="badge badge-pending" style={{ fontSize: '0.65rem' }}>
+                      {emp.role}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       ) : currentShift.status === 'submitted' ? (

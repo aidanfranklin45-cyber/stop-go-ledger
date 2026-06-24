@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2, UserPlus } from 'lucide-react';
-import PinNumpad from './PinNumpad';
 import { getEmployeeAvatarStyle } from '../firebase';
 
 const RosterSidebar = ({
@@ -12,8 +11,6 @@ const RosterSidebar = ({
   isReadOnly = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState('select'); // 'select' or 'pin'
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [error, setError] = useState("");
 
   const getInitials = (name) => {
@@ -24,36 +21,26 @@ const RosterSidebar = ({
 
   const handleOpenAddModal = () => {
     setIsOpen(true);
-    setStep('select');
-    setSelectedEmployeeId(null);
     setError("");
   };
 
   const handleCloseModal = () => {
     setIsOpen(false);
-    setStep('select');
-    setSelectedEmployeeId(null);
     setError("");
   };
 
-  const handleSelectEmployee = (empId) => {
-    setSelectedEmployeeId(empId);
-    setStep('pin');
-    setError("");
-  };
-
-  const handlePinComplete = async (pin) => {
+  const handleSelectEmployee = async (empId) => {
     setError("");
     try {
-      const result = await onAddMember(selectedEmployeeId, pin);
+      const result = await onAddMember(empId);
       // Support either true/false success return or throwing on validation failure
       if (result === false) {
-        setError("Invalid PIN. Please try again.");
+        setError("Failed to add member to shift.");
       } else {
         handleCloseModal();
       }
     } catch (err) {
-      setError(err?.message || "PIN verification failed.");
+      setError(err?.message || "Failed to add member.");
     }
   };
 
@@ -173,99 +160,92 @@ const RosterSidebar = ({
             style={{ maxWidth: '400px', width: '100%', padding: '24px' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {step === 'select' ? (
-              <div>
-                <h3 
+            <div>
+              <h3 
+                style={{ 
+                  fontFamily: 'var(--font-display)', 
+                  fontWeight: 600, 
+                  fontSize: '1.25rem',
+                  color: 'var(--text-primary)',
+                  marginBottom: '16px'
+                }}
+              >
+                Select Employee
+              </h3>
+              {error && (
+                <div style={{ color: 'var(--accent-red)', fontSize: '0.85rem', marginBottom: '12px', textAlign: 'center' }}>
+                  {error}
+                </div>
+              )}
+              {eligibleEmployees.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '0.9rem' }}>
+                  All active employees are already checked in.
+                </p>
+              ) : (
+                <div 
                   style={{ 
-                    fontFamily: 'var(--font-display)', 
-                    fontWeight: 600, 
-                    fontSize: '1.25rem',
-                    color: 'var(--text-primary)',
-                    marginBottom: '16px'
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '8px', 
+                    maxHeight: '260px', 
+                    overflowY: 'auto',
+                    marginBottom: '20px',
+                    paddingRight: '4px'
                   }}
                 >
-                  Select Employee
-                </h3>
-                {eligibleEmployees.length === 0 ? (
-                  <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '0.9rem' }}>
-                    All active employees are already checked in.
-                  </p>
-                ) : (
-                  <div 
-                    style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      gap: '8px', 
-                      maxHeight: '260px', 
-                      overflowY: 'auto',
-                      marginBottom: '20px',
-                      paddingRight: '4px'
-                    }}
-                  >
-                    {eligibleEmployees.map(emp => {
-                      const id = emp.employee_id || emp.id;
-                      const name = emp.employee_name || emp.name;
-                      const role = emp.role || "operator";
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => handleSelectEmployee(id)}
-                          className="member-item w-full"
-                          style={{ 
-                            textAlign: 'left', 
-                            cursor: 'pointer', 
-                            background: 'rgba(255, 255, 255, 0.02)',
-                            width: '100%',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <div className="member-info">
-                            <div 
-                              className="member-avatar"
-                              style={{
-                                background: getEmployeeAvatarStyle(name, emp.color).backgroundColor,
-                                color: getEmployeeAvatarStyle(name, emp.color).color
-                              }}
-                            >
-                              {getInitials(name)}
-                            </div>
-                            <div>
-                              <div className="member-name">{name}</div>
-                              <span 
-                                className={`badge ${role === 'manager' ? 'badge-pending' : 'badge-open'}`} 
-                                style={{ fontSize: '0.6rem', padding: '1px 5px', marginTop: '2px' }}
-                              >
-                                {role}
-                              </span>
-                            </div>
+                  {eligibleEmployees.map(emp => {
+                    const id = emp.employee_id || emp.id;
+                    const name = emp.employee_name || emp.name;
+                    const role = emp.role || "operator";
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => handleSelectEmployee(id)}
+                        className="member-item w-full"
+                        style={{ 
+                          textAlign: 'left', 
+                          cursor: 'pointer', 
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          width: '100%',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <div className="member-info">
+                          <div 
+                            className="member-avatar"
+                            style={{
+                              background: getEmployeeAvatarStyle(name, emp.color).backgroundColor,
+                              color: getEmployeeAvatarStyle(name, emp.color).color
+                            }}
+                          >
+                            {getInitials(name)}
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-secondary w-full"
-                  onClick={handleCloseModal}
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <PinNumpad
-                title={`Enter PIN for ${
-                  allEmployees.find(e => (e.employee_id || e.id) === selectedEmployeeId)?.employee_name || 
-                  allEmployees.find(e => (e.employee_id || e.id) === selectedEmployeeId)?.name
-                }`}
-                onPinComplete={handlePinComplete}
-                onCancel={() => setStep('select')}
-                error={error}
-              />
-            )}
+                          <div>
+                            <div className="member-name">{name}</div>
+                            <span 
+                              className={`badge ${role === 'manager' ? 'badge-pending' : 'badge-open'}`} 
+                              style={{ fontSize: '0.65rem', padding: '2px 6px', marginTop: '2px' }}
+                            >
+                              {role}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary w-full"
+                onClick={handleCloseModal}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>,
         document.body
