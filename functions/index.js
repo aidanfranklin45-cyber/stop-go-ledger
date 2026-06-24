@@ -15,11 +15,24 @@ app.use(express.json());
 // MASTER DATA
 // ==============================================================================
 const SEED_EMPLOYEES = [
-  { id: "EMP_01", name: "Alice Smith", pin: "111111", role: "manager", is_active: true },
-  { id: "EMP_02", name: "Bob Jones", pin: "222222", role: "manager", is_active: true },
-  { id: "EMP_03", name: "Charlie Brown", pin: "333333", role: "operator", is_active: true },
-  { id: "EMP_04", name: "David Miller", pin: "444444", role: "operator", is_active: true },
-  { id: "EMP_05", name: "Eva Davis", pin: "555555", role: "operator", is_active: true }
+  { id: "101", name: "Aidan", pin: "610287", role: "manager", is_active: true },
+  { id: "107", name: "Lyla", pin: "893412", role: "operator", is_active: true },
+  { id: "108", name: "Esmeralda", pin: "267503", role: "operator", is_active: true },
+  { id: "112", name: "Gena", pin: "410972", role: "operator", is_active: true },
+  { id: "113", name: "Angel", pin: "285194", role: "operator", is_active: true },
+  { id: "115", name: "Christian", pin: "913850", role: "operator", is_active: true },
+  { id: "116", name: "Audrey", pin: "574639", role: "operator", is_active: true },
+  { id: "118", name: "Bailey", pin: "384621", role: "operator", is_active: true },
+  { id: "119", name: "Keali", pin: "750392", role: "operator", is_active: true },
+  { id: "123", name: "Adley", pin: "629425", role: "operator", is_active: true },
+  { id: "124", name: "Madeline", pin: "728363", role: "operator", is_active: true },
+  { id: "125", name: "Kayla", pin: "425673", role: "operator", is_active: true },
+  { id: "126", name: "Alexandra", pin: "843695", role: "operator", is_active: true },
+  { id: "128", name: "Dora", pin: "576435", role: "operator", is_active: true },
+  { id: "129", name: "Laney", pin: "936481", role: "operator", is_active: true },
+  { id: "130", name: "Addie", pin: "545358", role: "operator", is_active: true },
+  { id: "131", name: "Karen", pin: "831402", role: "operator", is_active: true },
+  { id: "132", name: "Natalie", pin: "259716", role: "operator", is_active: true }
 ];
 
 const OPENING_TASKS = [
