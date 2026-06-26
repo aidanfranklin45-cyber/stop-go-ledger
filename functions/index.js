@@ -836,4 +836,4 @@ exports.stopBilling = onRequest({ maxInstances: 1, cors: false }, async (req, re
 });
 
 // Main Express API endpoint with strict scaling cap
-exports.api = onRequest({ maxInstances: 1, cors: true }, app);
+exports.api = onRequest({ maxInstances: 1, cors: false }, app);
