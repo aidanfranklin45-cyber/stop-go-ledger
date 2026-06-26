@@ -13,7 +13,7 @@ import {
   Flag,
   AlertTriangle
 } from 'lucide-react';
-import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin, updateEmployeeColor, getSubmittedShifts, getActiveShift, getEmployeeAvatarStyle } from '../firebase';
+import { getEmployees, validateEmployeePin, addEmployee, deleteEmployee, updateEmployeePin, updateEmployeeColor, updateEmployeeProfile, getSubmittedShifts, getActiveShift, getEmployeeAvatarStyle } from '../firebase';
 import PinNumpad from './PinNumpad';
 
 const StaffManager = ({ onBack, defaultAuthenticated }) => {
@@ -40,6 +40,18 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("operator");
   const [newPin, setNewPin] = useState("");
+  const [editNameInput, setEditNameInput] = useState("");
+  const [editIdInput, setEditIdInput] = useState("");
+
+  useEffect(() => {
+    if (editingEmployee) {
+      setEditNameInput(editingEmployee.employee_name);
+      setEditIdInput(editingEmployee.employee_id);
+    } else {
+      setEditNameInput("");
+      setEditIdInput("");
+    }
+  }, [editingEmployee]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -171,6 +183,51 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
     }
   };
 
+  const handleProfileUpdateSubmit = async (e) => {
+    e.preventDefault();
+    setManagerError("");
+    setManagerMessage("");
+
+    const trimmedName = editNameInput.trim();
+    const trimmedId = editIdInput.trim();
+
+    if (!trimmedName) {
+      setManagerError("Employee name is required.");
+      return;
+    }
+    if (!trimmedId) {
+      setManagerError("Employee ID is required.");
+      return;
+    }
+
+    if (trimmedId !== editingEmployee.employee_id) {
+      const confirmChange = window.confirm(
+        `Warning: Changing the Employee ID from "${editingEmployee.employee_id}" to "${trimmedId}" will modify their login credentials. Are you sure you want to proceed?`
+      );
+      if (!confirmChange) return;
+    }
+
+    try {
+      setLoading(true);
+      const updated = await updateEmployeeProfile(
+        editingEmployee.employee_id,
+        trimmedName,
+        trimmedId
+      );
+      setManagerMessage(`Successfully updated profile for ${trimmedName}.`);
+      
+      setSelectedEmpId(updated.employee_id);
+      setEditingEmployee(updated);
+      
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      setManagerError(err.message || "Failed to update employee profile.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleStartEdit = (emp) => {
     setEditingEmployee(emp);
     setNewPin("");
@@ -284,17 +341,34 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
       
       {/* Left Column: Staff Roster */}
       <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)', minHeight: '480px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
-          <button 
-            type="button" 
-            className="btn btn-secondary" 
-            onClick={onBack}
-            style={{ padding: '6px 10px', borderRadius: '50%' }}
-            aria-label="Back to dashboard"
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button 
+              type="button" 
+              className="btn btn-secondary" 
+              onClick={onBack}
+              style={{ padding: '6px 10px', borderRadius: '50%' }}
+              aria-label="Back to dashboard"
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <h2 style={{ fontSize: '1.4rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)', margin: 0 }}>Staff Manager</h2>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+            onClick={() => {
+              setSelectedEmpId(null);
+              setEditingEmployee(null);
+              setNewPin("");
+              setManagerError("");
+              setManagerMessage("");
+            }}
           >
-            <ArrowLeft size={16} />
+            <Plus size={14} />
+            <span>New Staff</span>
           </button>
-          <h2 style={{ fontSize: '1.4rem', fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>Staff Manager</h2>
         </div>
 
         {loading ? (
@@ -408,32 +482,52 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
         {selectedEmpId && editingEmployee ? (
           <>
             {/* Header / Meta */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>
-              <div>
-                <span className={`badge ${editingEmployee.role === 'manager' ? 'badge-pending' : 'badge-open'}`} style={{ fontSize: '0.65rem', padding: '2px 6px', textTransform: 'capitalize', marginBottom: '6px', display: 'inline-block' }}>
-                  {editingEmployee.role}
-                </span>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.4rem', color: 'var(--text-primary)', margin: 0 }}>
-                  {editingEmployee.employee_name}
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {editingEmployee.employee_id}</span>
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                onClick={() => {
-                  setSelectedEmpId(null);
-                  setEditingEmployee(null);
-                  setNewPin("");
-                  setManagerError("");
-                  setManagerMessage("");
-                }}
-              >
-                <Plus size={14} />
-                <span>New Staff</span>
-              </button>
+            <div style={{ borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>
+              <span className={`badge ${editingEmployee.role === 'manager' ? 'badge-pending' : 'badge-open'}`} style={{ fontSize: '0.65rem', padding: '2px 6px', textTransform: 'capitalize', marginBottom: '6px', display: 'inline-block' }}>
+                {editingEmployee.role}
+              </span>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.4rem', color: 'var(--text-primary)', margin: 0 }}>
+                {editingEmployee.employee_name}
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {editingEmployee.employee_id}</span>
             </div>
+
+            {/* Edit Name & ID Form */}
+            <form onSubmit={handleProfileUpdateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>
+                  Edit Name & ID
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editNameInput}
+                    onChange={(e) => setEditNameInput(e.target.value)}
+                    placeholder="Full Name"
+                    required
+                    style={{ flex: 2, padding: '8px' }}
+                  />
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editIdInput}
+                    onChange={(e) => setEditIdInput(e.target.value)}
+                    placeholder="ID"
+                    required
+                    style={{ flex: 1, minWidth: '80px', padding: '8px' }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                    disabled={!editNameInput.trim() || !editIdInput.trim() || (editNameInput.trim() === editingEmployee.employee_name && editIdInput.trim() === editingEmployee.employee_id)}
+                  >
+                    <span>Save</span>
+                  </button>
+                </div>
+              </div>
+            </form>
 
             {/* Message banners */}
             {managerMessage && (

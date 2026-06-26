@@ -621,6 +621,48 @@ app.put("/employees/:id/color", async (req, res) => {
   }
 });
 
+app.put("/employees/:id", async (req, res) => {
+  const { id } = req.params;
+  const { employee_name, new_employee_id } = req.body;
+  try {
+    const docRef = db.collection("employees").doc(id);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) {
+      return res.status(404).json({ error: "Employee not found" });
+    }
+    const empData = docSnap.data();
+
+    if (new_employee_id && new_employee_id !== id) {
+      const newDocRef = db.collection("employees").doc(new_employee_id);
+      const newDocSnap = await newDocRef.get();
+      if (newDocSnap.exists) {
+        return res.status(400).json({ error: "Employee ID already exists" });
+      }
+
+      const updatedData = {
+        ...empData,
+        employee_id: new_employee_id,
+        employee_name: employee_name !== undefined ? employee_name : empData.employee_name
+      };
+
+      await newDocRef.set(updatedData);
+      await docRef.delete();
+      res.status(200).json(updatedData);
+    } else {
+      const updatedData = {};
+      if (employee_name !== undefined) {
+        updatedData.employee_name = employee_name;
+      }
+      if (Object.keys(updatedData).length > 0) {
+        await docRef.update(updatedData);
+      }
+      res.status(200).json({ ...empData, ...updatedData });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/shifts/:id/seed", async (req, res) => {
   const { id } = req.params;
   const { shiftType, date } = req.body;

@@ -376,6 +376,45 @@ export async function updateEmployeeColor(employeeId, color) {
   return false;
 }
 
+export async function updateEmployeeProfile(employeeId, newName, newEmployeeId) {
+  if (isLiveMode()) {
+    const res = await fetch(`${API_URL}/employees/${employeeId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employee_name: newName, new_employee_id: newEmployeeId })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Failed to update employee profile via API");
+    }
+    return await res.json();
+  }
+
+  const list = await getEmployees();
+  const idx = list.findIndex(e => e.employee_id === employeeId);
+  if (idx !== -1) {
+    if (newEmployeeId && newEmployeeId !== employeeId) {
+      const conflict = list.find(e => e.employee_id === newEmployeeId);
+      if (conflict) {
+        throw new Error("Employee ID already exists");
+      }
+      const updated = {
+        ...list[idx],
+        employee_id: newEmployeeId,
+        employee_name: newName
+      };
+      list[idx] = updated;
+      localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
+      return updated;
+    } else {
+      list[idx].employee_name = newName;
+      localStorage.setItem(MOCK_KEY_EMPLOYEES, JSON.stringify(list));
+      return list[idx];
+    }
+  }
+  throw new Error("Employee not found");
+}
+
 function enrichShiftCounts(shift) {
   if (shift && shift.tasks) {
     const tasksArray = Object.values(shift.tasks);

@@ -668,6 +668,45 @@ describe('Firebase Service Unit Tests', () => {
       expect(emps.length).toBe(4);
       expect(emps.find(e => e.employee_id === 'EMP_05')).toBeUndefined();
     });
+
+    it('should update an existing employee name', async () => {
+      const { updateEmployeeProfile, getEmployees } = firebaseModule;
+
+      const updated = await updateEmployeeProfile('EMP_03', 'Charlie Brown Jr.', 'EMP_03');
+      expect(updated).toBeDefined();
+      expect(updated.employee_name).toBe('Charlie Brown Jr.');
+      expect(updated.employee_id).toBe('EMP_03');
+
+      const emps = await getEmployees();
+      const emp = emps.find(e => e.employee_id === 'EMP_03');
+      expect(emp).toBeDefined();
+      expect(emp.employee_name).toBe('Charlie Brown Jr.');
+    });
+
+    it('should update an existing employee ID and name', async () => {
+      const { updateEmployeeProfile, getEmployees } = firebaseModule;
+
+      const updated = await updateEmployeeProfile('EMP_03', 'Charlie Brown Jr.', 'EMP_99');
+      expect(updated).toBeDefined();
+      expect(updated.employee_name).toBe('Charlie Brown Jr.');
+      expect(updated.employee_id).toBe('EMP_99');
+
+      const emps = await getEmployees();
+      expect(emps.find(e => e.employee_id === 'EMP_03')).toBeUndefined();
+      
+      const newEmp = emps.find(e => e.employee_id === 'EMP_99');
+      expect(newEmp).toBeDefined();
+      expect(newEmp.employee_name).toBe('Charlie Brown Jr.');
+      expect(newEmp.role).toBe('operator');
+    });
+
+    it('should throw an error when updating to an existing employee ID', async () => {
+      const { updateEmployeeProfile } = firebaseModule;
+
+      await expect(
+        updateEmployeeProfile('EMP_03', 'Charlie Brown', 'EMP_01')
+      ).rejects.toThrow('Employee ID already exists');
+    });
   });
 
   describe('Phase 4: Discord Webhook and Shift Notes', () => {
