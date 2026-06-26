@@ -774,8 +774,29 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                                 </div>
                                 {t.is_completed && (
                                   <div className="task-meta">
-                                    <div className="task-meta-item">
-                                      <User size={12} />
+                                    <div className="task-meta-item" style={{ gap: '6px' }}>
+                                      {(() => {
+                                        const emp = fullEmployeesList.find(e => e.employee_id === t.completed_by_id || e.id === t.completed_by_id);
+                                        const initials = t.completed_by_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '';
+                                        const avatarStyle = getEmployeeAvatarStyle(t.completed_by_name, emp?.color);
+                                        return (
+                                          <div style={{
+                                            width: '14px',
+                                            height: '14px',
+                                            borderRadius: '50%',
+                                            background: avatarStyle.backgroundColor,
+                                            color: avatarStyle.color,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: '0.5rem',
+                                            fontWeight: 800,
+                                            lineHeight: 1
+                                          }}>
+                                            {initials}
+                                          </div>
+                                        );
+                                      })()}
                                       <span>{t.completed_by_name}</span>
                                     </div>
                                     <div className="task-meta-item">
@@ -795,8 +816,23 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
 
                                 {t.is_completed && t.flag && (
                                   <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
-                                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                       <Flag size={12} fill="currentColor" />
+                                      <div style={{
+                                        width: '14px',
+                                        height: '14px',
+                                        borderRadius: '50%',
+                                        background: getEmployeeAvatarStyle(t.flag.flagged_by_name).backgroundColor,
+                                        color: getEmployeeAvatarStyle(t.flag.flagged_by_name).color,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '0.55rem',
+                                        fontWeight: 700,
+                                        lineHeight: 1
+                                      }}>
+                                        {t.flag.flagged_by_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                      </div>
                                       <span>Flagged by {t.flag.flagged_by_name}</span>
                                     </div>
                                     <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', margin: '4px 0 0 0', fontStyle: 'italic' }}>

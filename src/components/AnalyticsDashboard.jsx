@@ -14,7 +14,7 @@ import {
   Clock,
   User 
 } from 'lucide-react';
-import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, updateTask } from '../firebase';
+import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, updateTask, getEmployeeAvatarStyle } from '../firebase';
 import PinNumpad from './PinNumpad';
 import ChoreFlagModal from './ChoreFlagModal';
 
@@ -22,6 +22,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
   // Authentication states
   const [isAuthenticated, setIsAuthenticated] = useState(defaultAuthenticated || false);
   const [allEmployees, setAllEmployees] = useState([]);
+  const [fullEmployeesList, setFullEmployeesList] = useState([]);
   const [selectedEntryManagerId, setSelectedEntryManagerId] = useState(null);
   const [entryPinError, setEntryPinError] = useState("");
 
@@ -99,6 +100,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
   const loadManagers = useCallback(async () => {
     try {
       const emps = await getEmployees();
+      setFullEmployeesList(emps);
       setAllEmployees(emps.filter(e => e.role === 'manager' && e.is_active));
     } catch (err) {
       console.error("Failed to load managers:", err);
@@ -347,20 +349,39 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                 No active managers registered.
               </p>
             ) : (
-              allEmployees.map(mgr => (
-                <button
-                  key={mgr.employee_id}
-                  type="button"
-                  className="btn btn-secondary w-full"
-                  style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}
-                  onClick={() => setSelectedEntryManagerId(mgr.employee_id)}
-                >
-                  <span>{mgr.employee_name}</span>
-                  <span className="badge badge-pending" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
-                    Manager
-                  </span>
-                </button>
-              ))
+              allEmployees.map(mgr => {
+                const avatarStyle = getEmployeeAvatarStyle(mgr.employee_name, mgr.color);
+                return (
+                  <button
+                    key={mgr.employee_id}
+                    type="button"
+                    className="btn btn-secondary w-full"
+                    style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', alignItems: 'center' }}
+                    onClick={() => setSelectedEntryManagerId(mgr.employee_id)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: avatarStyle.backgroundColor,
+                        color: avatarStyle.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.65rem',
+                        fontWeight: 700
+                      }}>
+                        {mgr.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </div>
+                      <span>{mgr.employee_name}</span>
+                    </div>
+                    <span className="badge badge-pending" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
+                      Manager
+                    </span>
+                  </button>
+                );
+              })
             )}
             <button
               type="button"
@@ -606,40 +627,44 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {topPerformers.map((perf, idx) => (
-                    <div 
-                      key={perf.name} 
-                      className="member-item" 
-                      style={{ 
-                        background: 'rgba(255, 255, 255, 0.3)', 
-                        padding: '12px', 
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        alignItems: 'center' 
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ 
-                          width: '32px', 
-                          height: '32px', 
-                          borderRadius: '50%', 
-                          background: idx === 0 ? 'var(--primary)' : 'rgba(79, 70, 229, 0.1)', 
-                          color: idx === 0 ? '#ffffff' : 'var(--primary)', 
+                  {topPerformers.map((perf, idx) => {
+                    const emp = fullEmployeesList.find(e => (e.employee_name || e.name) === perf.name);
+                    const avatarStyle = getEmployeeAvatarStyle(perf.name, emp?.color);
+                    return (
+                      <div 
+                        key={perf.name} 
+                        className="member-item" 
+                        style={{ 
+                          background: 'rgba(255, 255, 255, 0.3)', 
+                          padding: '12px', 
                           display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          fontWeight: 700, 
-                          fontSize: '0.85rem' 
-                        }}>
-                          {perf.name.split(' ').map(n => n[0]).join('')}
+                          justifyContent: 'space-between',
+                          alignItems: 'center' 
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ 
+                            width: '32px', 
+                            height: '32px', 
+                            borderRadius: '50%', 
+                            background: avatarStyle.backgroundColor, 
+                            color: avatarStyle.color, 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            fontWeight: 700, 
+                            fontSize: '0.85rem' 
+                          }}>
+                            {perf.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </div>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{perf.name}</span>
                         </div>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{perf.name}</span>
+                        <span className="badge badge-submitted" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                          {perf.count} Chores
+                        </span>
                       </div>
-                      <span className="badge badge-submitted" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                        {perf.count} Chores
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -701,6 +726,8 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
                 {completedChoresFeed.map((item, idx) => {
                   const initial = item.completed_by_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '';
+                  const emp = fullEmployeesList.find(e => (e.employee_name || e.name) === item.completed_by_name);
+                  const avatarStyle = getEmployeeAvatarStyle(item.completed_by_name, emp?.color);
                   return (
                     <div 
                       key={`${item.shift_id}-${item.task_id}-${idx}`} 
@@ -738,8 +765,8 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                               width: '24px', 
                               height: '24px', 
                               borderRadius: '50%', 
-                              background: 'var(--primary-glow)', 
-                              color: 'var(--primary)', 
+                              background: avatarStyle.backgroundColor, 
+                              color: avatarStyle.color, 
                               display: 'flex', 
                               alignItems: 'center', 
                               justifyContent: 'center', 
@@ -828,8 +855,35 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                           <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             ⚠️ Flag details from manager:
                           </span>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', margin: '4px 0 0 0', fontStyle: 'italic' }}>
-                            "{item.flag.reason}" (Flagged by {item.flag.flagged_by_name} at {new Date(item.flag.flagged_at).toLocaleDateString()})
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)', margin: '4px 0 0 0', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span>"{item.flag.reason}"</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontStyle: 'normal', color: 'var(--text-secondary)' }}>
+                              <span>• Flagged by</span>
+                              {(() => {
+                                const flagMgr = fullEmployeesList.find(e => (e.employee_name || e.name) === item.flag.flagged_by_name);
+                                const fAvatar = getEmployeeAvatarStyle(item.flag.flagged_by_name, flagMgr?.color);
+                                return (
+                                  <>
+                                    <span style={{
+                                      width: '16px',
+                                      height: '16px',
+                                      borderRadius: '50%',
+                                      background: fAvatar.backgroundColor,
+                                      color: fAvatar.color,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '0.55rem',
+                                      fontWeight: 700
+                                    }}>
+                                      {item.flag.flagged_by_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                    </span>
+                                    <span style={{ fontWeight: 600 }}>{item.flag.flagged_by_name}</span>
+                                  </>
+                                );
+                              })()}
+                              <span>at {new Date(item.flag.flagged_at).toLocaleDateString()}</span>
+                            </span>
                           </p>
                           {item.flag.photo && (
                             <div style={{ marginTop: '8px' }}>
