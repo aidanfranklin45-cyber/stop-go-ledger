@@ -19,7 +19,8 @@ import {
   deleteSlowChore, 
   completeSlowChore,
   getEmployees,
-  validateEmployeePin 
+  validateEmployeePin,
+  getEmployeeAvatarStyle 
 } from '../firebase';
 import PinNumpad from './PinNumpad';
 
@@ -572,7 +573,24 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                           {chore.last_completed_at && (
                             <>
                               <span>•</span>
-                              <span>Last by {chore.last_completed_by_name} ({parseDate(chore.last_completed_at) ? parseDate(chore.last_completed_at).toLocaleDateString() : ''})</span>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <div style={{
+                                  width: '14px',
+                                  height: '14px',
+                                  borderRadius: '50%',
+                                  background: getEmployeeAvatarStyle(chore.last_completed_by_name, allEmployees.find(e => e.employee_id === chore.last_completed_by_id)?.color).backgroundColor,
+                                  color: getEmployeeAvatarStyle(chore.last_completed_by_name, allEmployees.find(e => e.employee_id === chore.last_completed_by_id)?.color).color,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '0.55rem',
+                                  fontWeight: 700,
+                                  lineHeight: 1
+                                }}>
+                                  {chore.last_completed_by_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                </div>
+                                <span>Last by {chore.last_completed_by_name} ({parseDate(chore.last_completed_at) ? parseDate(chore.last_completed_at).toLocaleDateString() : ''})</span>
+                              </div>
                             </>
                           )}
                         </div>
@@ -637,12 +655,29 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                             </span>
                           </>
                         )}
-                        {chore.last_completed_at && (
-                          <>
-                            <span>•</span>
-                            <span>Last: {chore.last_completed_by_name} ({parseDate(chore.last_completed_at) ? parseDate(chore.last_completed_at).toLocaleDateString() : ''})</span>
-                          </>
-                        )}
+                         {chore.last_completed_at && (
+                           <>
+                             <span>•</span>
+                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                               <div style={{
+                                 width: '14px',
+                                 height: '14px',
+                                 borderRadius: '50%',
+                                 background: getEmployeeAvatarStyle(chore.last_completed_by_name, allEmployees.find(e => e.employee_id === chore.last_completed_by_id)?.color).backgroundColor,
+                                 color: getEmployeeAvatarStyle(chore.last_completed_by_name, allEmployees.find(e => e.employee_id === chore.last_completed_by_id)?.color).color,
+                                 display: 'inline-flex',
+                                 alignItems: 'center',
+                                 justifyContent: 'center',
+                                 fontSize: '0.55rem',
+                                 fontWeight: 700,
+                                 lineHeight: 1
+                               }}>
+                                 {chore.last_completed_by_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                               </div>
+                               <span>Last: {chore.last_completed_by_name} ({parseDate(chore.last_completed_at) ? parseDate(chore.last_completed_at).toLocaleDateString() : ''})</span>
+                             </div>
+                           </>
+                         )}
                       </div>
                     </div>
                   </div>
@@ -727,12 +762,36 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
                 Completed By
               </label>
-              <select
-                className="form-input"
-                value={selectedCompleterId}
-                onChange={(e) => setSelectedCompleterId(e.target.value)}
-                style={{ padding: '10px', fontSize: '0.9rem', cursor: 'pointer', width: '100%' }}
-              >
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {selectedCompleterId && (() => {
+                  const emp = allEmployees.find(e => e.employee_id === selectedCompleterId);
+                  if (!emp) return null;
+                  const initials = emp.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                  const avatarStyle = getEmployeeAvatarStyle(emp.employee_name, emp.color);
+                  return (
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: avatarStyle.backgroundColor,
+                      color: avatarStyle.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      flexShrink: 0
+                    }}>
+                      {initials}
+                    </div>
+                  );
+                })()}
+                <select
+                  className="form-input"
+                  value={selectedCompleterId}
+                  onChange={(e) => setSelectedCompleterId(e.target.value)}
+                  style={{ padding: '10px', fontSize: '0.9rem', cursor: 'pointer', flexGrow: 1 }}
+                >
                 <option value="">Select Employee</option>
                 {allEmployees.map(emp => (
                   <option key={emp.employee_id} value={emp.employee_id}>
@@ -740,6 +799,7 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                   </option>
                 ))}
               </select>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -805,10 +865,26 @@ const SlowChoresManager = ({ onBack, viewMode = 'checklist', defaultAuthenticate
                         key={mgr.employee_id}
                         type="button"
                         className="btn btn-secondary w-full"
-                        style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}
+                        style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', alignItems: 'center' }}
                         onClick={() => setSelectedEntryManagerId(mgr.employee_id)}
                       >
-                        <span>{mgr.employee_name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            background: getEmployeeAvatarStyle(mgr.employee_name, mgr.color).backgroundColor,
+                            color: getEmployeeAvatarStyle(mgr.employee_name, mgr.color).color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.65rem',
+                            fontWeight: 700
+                          }}>
+                            {mgr.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </div>
+                          <span>{mgr.employee_name}</span>
+                        </div>
                         <span className="badge badge-pending" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
                           Manager
                         </span>

@@ -16,7 +16,7 @@ import {
   Flag,
   FileText
 } from 'lucide-react';
-import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift, sendDiscordShiftDeleted, updateTask } from '../firebase';
+import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift, sendDiscordShiftDeleted, updateTask, getEmployeeAvatarStyle } from '../firebase';
 import PinNumpad from './PinNumpad';
 import ChoreFlagModal from './ChoreFlagModal';
 
@@ -294,10 +294,26 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                   key={mgr.employee_id}
                   type="button"
                   className="btn btn-secondary w-full"
-                  style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}
+                  style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', alignItems: 'center' }}
                   onClick={() => setSelectedEntryManagerId(mgr.employee_id)}
                 >
-                  <span>{mgr.employee_name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      background: getEmployeeAvatarStyle(mgr.employee_name, mgr.color).backgroundColor,
+                      color: getEmployeeAvatarStyle(mgr.employee_name, mgr.color).color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.65rem',
+                      fontWeight: 700
+                    }}>
+                      {mgr.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <span>{mgr.employee_name}</span>
+                  </div>
                   <span className="badge badge-pending" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
                     Manager
                   </span>
@@ -457,10 +473,26 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                       key={mgr.employee_id}
                       type="button"
                       className="btn btn-secondary w-full"
-                      style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}
+                      style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', alignItems: 'center' }}
                       onClick={() => setSelectedManagerId(mgr.employee_id)}
                     >
-                      <span>{mgr.employee_name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          background: getEmployeeAvatarStyle(mgr.employee_name, mgr.color).backgroundColor,
+                          color: getEmployeeAvatarStyle(mgr.employee_name, mgr.color).color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.65rem',
+                          fontWeight: 700
+                        }}>
+                          {mgr.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </div>
+                        <span>{mgr.employee_name}</span>
+                      </div>
                       <span className="badge badge-pending" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
                         Manager
                       </span>
@@ -625,12 +657,32 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                 <h4 style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Users size={14} /> Checked-in Roster
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {selectedShift.active_team_pids?.map(pid => (
-                    <span key={pid} style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                      👤 {getEmployeeName(pid)}
-                    </span>
-                  ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedShift.active_team_pids?.map(pid => {
+                    const emp = fullEmployeesList.find(e => e.employee_id === pid || e.id === pid);
+                    const name = emp?.employee_name || pid;
+                    const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                    const avatarStyle = getEmployeeAvatarStyle(name, emp?.color);
+                    return (
+                      <div key={pid} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                        <div style={{
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          background: avatarStyle.backgroundColor,
+                          color: avatarStyle.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.65rem',
+                          fontWeight: 700
+                        }}>
+                          {initials}
+                        </div>
+                        <span>{name}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -640,12 +692,32 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {selectedShift.signatures && Array.isArray(selectedShift.signatures) ? (
-                    selectedShift.signatures.map((s, idx) => (
-                      <div key={idx} style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</span>
-                        <span style={{ color: 'var(--text-muted)' }}>{formatTime(s.timestamp)}</span>
-                      </div>
-                    ))
+                    selectedShift.signatures.map((s, idx) => {
+                      const emp = fullEmployeesList.find(e => e.employee_id === s.employeeId || e.id === s.employeeId);
+                      const avatarStyle = getEmployeeAvatarStyle(s.name, emp?.color);
+                      return (
+                        <div key={idx} style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '50%',
+                              background: avatarStyle.backgroundColor,
+                              color: avatarStyle.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.55rem',
+                              fontWeight: 700
+                            }}>
+                              {s.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </div>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</span>
+                          </div>
+                          <span style={{ color: 'var(--text-muted)' }}>{formatTime(s.timestamp)}</span>
+                        </div>
+                      );
+                    })
                   ) : selectedShift.signatures ? (
                     // Fallback for object format in older tests
                     <div style={{ fontSize: '0.85rem' }}>

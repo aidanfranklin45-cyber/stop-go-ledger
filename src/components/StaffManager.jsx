@@ -302,10 +302,26 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
                   key={mgr.employee_id}
                   type="button"
                   className="btn btn-secondary w-full"
-                  style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}
+                  style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', alignItems: 'center' }}
                   onClick={() => setSelectedManagerId(mgr.employee_id)}
                 >
-                  <span>{mgr.employee_name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      background: getEmployeeAvatarStyle(mgr.employee_name, mgr.color).backgroundColor,
+                      color: getEmployeeAvatarStyle(mgr.employee_name, mgr.color).color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.65rem',
+                      fontWeight: 700
+                    }}>
+                      {mgr.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <span>{mgr.employee_name}</span>
+                  </div>
                   <span className="badge badge-pending" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
                     Manager
                   </span>
@@ -482,14 +498,31 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
         {selectedEmpId && editingEmployee ? (
           <>
             {/* Header / Meta */}
-            <div style={{ borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>
-              <span className={`badge ${editingEmployee.role === 'manager' ? 'badge-pending' : 'badge-open'}`} style={{ fontSize: '0.65rem', padding: '2px 6px', textTransform: 'capitalize', marginBottom: '6px', display: 'inline-block' }}>
-                {editingEmployee.role}
-              </span>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.4rem', color: 'var(--text-primary)', margin: 0 }}>
-                {editingEmployee.employee_name}
-              </h3>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {editingEmployee.employee_id}</span>
+            <div style={{ borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ 
+                width: '48px', 
+                height: '48px', 
+                borderRadius: '50%', 
+                background: getEmployeeAvatarStyle(editingEmployee.employee_name, editingEmployee.color).backgroundColor,
+                color: getEmployeeAvatarStyle(editingEmployee.employee_name, editingEmployee.color).color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.1rem',
+                fontWeight: 'bold',
+                boxShadow: '0 4px 12px rgba(15,23,42,0.1)'
+              }}>
+                {editingEmployee.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+              </div>
+              <div style={{ flexGrow: 1 }}>
+                <span className={`badge ${editingEmployee.role === 'manager' ? 'badge-pending' : 'badge-open'}`} style={{ fontSize: '0.65rem', padding: '2px 6px', textTransform: 'capitalize', marginBottom: '4px', display: 'inline-block' }}>
+                  {editingEmployee.role}
+                </span>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.4rem', color: 'var(--text-primary)', margin: 0 }}>
+                  {editingEmployee.employee_name}
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {editingEmployee.employee_id}</span>
+              </div>
             </div>
 
             {/* Edit Name & ID Form */}
@@ -762,7 +795,24 @@ const StaffManager = ({ onBack, defaultAuthenticated }) => {
                           <Clock size={10} />
                           {new Date(item.shift_date).toLocaleDateString()}
                         </span>
-                        <span>Flagged by {item.flag.flagged_by_name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{
+                            width: '14px',
+                            height: '14px',
+                            borderRadius: '50%',
+                            background: getEmployeeAvatarStyle(item.flag.flagged_by_name).backgroundColor,
+                            color: getEmployeeAvatarStyle(item.flag.flagged_by_name).color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.55rem',
+                            fontWeight: 700,
+                            lineHeight: 1
+                          }}>
+                            {item.flag.flagged_by_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </div>
+                          <span>Flagged by {item.flag.flagged_by_name}</span>
+                        </div>
                       </div>
 
                       {item.flag.photo && (

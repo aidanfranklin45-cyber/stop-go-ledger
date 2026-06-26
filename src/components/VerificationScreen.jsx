@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Shield, Check, Lock, RotateCcw, ArrowRight } from 'lucide-react';
 import PinNumpad from './PinNumpad';
-import { validateEmployeePin } from '../firebase';
+import { validateEmployeePin, getEmployeeAvatarStyle } from '../firebase';
 
 const VerificationScreen = ({
   activeTeam = [],
@@ -339,18 +339,58 @@ const VerificationScreen = ({
 
           {/* Signature Status Indicators */}
           <div className="sig-status-indicator" style={{ marginBottom: '28px' }}>
-            <div className={`sig-pill ${signature1 ? 'signed' : ''}`}>
-              {signature1 ? <Check size={16} /> : <Lock size={16} />}
-              <span>
-                {signature1 ? `Sig 1: ${signature1.name}` : `Signature 1: Pending`}
-              </span>
+            <div className={`sig-pill ${signature1 ? 'signed' : ''}`} style={{ gap: '8px' }}>
+              {signature1 ? (
+                <>
+                  <div style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    background: getEmployeeAvatarStyle(signature1.name, activeTeam.find(e => (e.employee_id || e.id) === signature1.employeeId)?.color).backgroundColor,
+                    color: getEmployeeAvatarStyle(signature1.name, activeTeam.find(e => (e.employee_id || e.id) === signature1.employeeId)?.color).color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.6rem',
+                    fontWeight: 700
+                  }}>
+                    {signature1.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                  <span>Sig 1: {signature1.name}</span>
+                </>
+              ) : (
+                <>
+                  <Lock size={16} />
+                  <span>Signature 1: Pending</span>
+                </>
+              )}
             </div>
             {activeTeam.length >= 2 && (
-              <div className={`sig-pill ${signature2 ? 'signed' : ''}`}>
-                {signature2 ? <Check size={16} /> : <Lock size={16} />}
-                <span>
-                  {signature2 ? `Sig 2: ${signature2.name}` : `Signature 2: Pending`}
-                </span>
+              <div className={`sig-pill ${signature2 ? 'signed' : ''}`} style={{ gap: '8px' }}>
+                {signature2 ? (
+                  <>
+                    <div style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: getEmployeeAvatarStyle(signature2.name, activeTeam.find(e => (e.employee_id || e.id) === signature2.employeeId)?.color).backgroundColor,
+                      color: getEmployeeAvatarStyle(signature2.name, activeTeam.find(e => (e.employee_id || e.id) === signature2.employeeId)?.color).color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.6rem',
+                      fontWeight: 700
+                    }}>
+                      {signature2.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <span>Sig 2: {signature2.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={16} />
+                    <span>Signature 2: Pending</span>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -424,15 +464,32 @@ const VerificationScreen = ({
                       const id = member.employee_id || member.id;
                       const name = member.employee_name || member.name;
                       const role = member.role || "operator";
+                      const avatarStyle = getEmployeeAvatarStyle(name, member.color);
                       return (
                         <button
                           key={id}
                           type="button"
                           className="btn btn-secondary text-left w-full"
-                          style={{ justifyContent: 'space-between', display: 'flex' }}
+                          style={{ justifyContent: 'space-between', display: 'flex', alignItems: 'center' }}
                           onClick={() => setSelectedEmployeeId(id)}
                         >
-                          <span>{name}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              background: avatarStyle.backgroundColor,
+                              color: avatarStyle.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.65rem',
+                              fontWeight: 700
+                            }}>
+                              {name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </div>
+                            <span>{name}</span>
+                          </div>
                           <span className="badge badge-open" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
                             {role}
                           </span>

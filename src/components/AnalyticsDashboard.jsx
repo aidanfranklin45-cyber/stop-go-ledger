@@ -711,15 +711,18 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                         padding: '12px 16px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '8px'
+                        gap: '8px',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        alignItems: 'stretch'
                       }}
                     >
-                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px', width: '100%', boxSizing: 'border-box' }}>
                         {/* Task name & category */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '1.1rem' }}>{getCategoryIcon(item.category)}</span>
-                          <div>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 auto', minWidth: '0' }}>
+                          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{getCategoryIcon(item.category)}</span>
+                          <div style={{ minWidth: '0' }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                               {item.task_name}
                             </span>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
@@ -729,7 +732,7 @@ const AnalyticsDashboard = ({ onBack, currentShift, defaultAuthenticated }) => {
                         </div>
 
                         {/* Who and When */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ 
                               width: '24px', 

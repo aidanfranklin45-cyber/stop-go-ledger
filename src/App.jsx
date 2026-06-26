@@ -900,8 +900,14 @@ function App() {
                 {activeTeamObjects.map(emp => (
                   <div key={emp.employee_id} className="member-item">
                     <div className="member-info">
-                      <div className="member-avatar">
-                        {emp.employee_name.split(' ').map(n => n[0]).join('')}
+                      <div 
+                        className="member-avatar"
+                        style={{
+                          background: getEmployeeAvatarStyle(emp.employee_name, emp.color).backgroundColor,
+                          color: getEmployeeAvatarStyle(emp.employee_name, emp.color).color
+                        }}
+                      >
+                        {emp.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                       </div>
                       <div>
                         <div className="member-name">{emp.employee_name}</div>
@@ -1028,8 +1034,45 @@ function App() {
                 <p style={{ fontWeight: '600' }}>{currentShift.completed_count} / {currentShift.total_count} tasks completed</p>
               </div>
               <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Roster:</span>
-                <p style={{ fontWeight: '600' }}>{activeTeamObjects.map(e => e.employee_name).join(', ')}</p>
+                <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>Roster:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {activeTeamObjects.map(emp => {
+                    const initials = emp.employee_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                    const avatarStyle = getEmployeeAvatarStyle(emp.employee_name, emp.color);
+                    return (
+                      <div 
+                        key={emp.employee_id} 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '6px', 
+                          background: 'rgba(255,255,255,0.45)', 
+                          padding: '4px 10px', 
+                          borderRadius: '20px', 
+                          fontSize: '0.8rem',
+                          fontWeight: 500,
+                          border: '1px solid var(--glass-border)'
+                        }}
+                      >
+                        <div style={{
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          background: avatarStyle.backgroundColor,
+                          color: avatarStyle.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.6rem',
+                          fontWeight: 700
+                        }}>
+                          {initials}
+                        </div>
+                        <span>{emp.employee_name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <span style={{ color: 'var(--text-secondary)' }}>Sealed At:</span>

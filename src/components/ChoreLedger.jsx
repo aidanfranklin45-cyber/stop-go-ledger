@@ -305,8 +305,29 @@ const ChoreLedger = ({
                           <div className="task-meta">
                             {isCompleted && (
                               <>
-                                <div className="task-meta-item">
-                                  <User size={12} />
+                                <div className="task-meta-item" style={{ gap: '6px' }}>
+                                  {(() => {
+                                    const member = activeTeam.find(m => (m.employee_id || m.id) === task.completed_by_id);
+                                    const initials = task.completed_by_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '';
+                                    const avatarStyle = getEmployeeAvatarStyle(task.completed_by_name, member?.color);
+                                    return (
+                                      <div style={{
+                                        width: '14px',
+                                        height: '14px',
+                                        borderRadius: '50%',
+                                        background: avatarStyle.backgroundColor,
+                                        color: avatarStyle.color,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '0.5rem',
+                                        fontWeight: 800,
+                                        lineHeight: 1
+                                      }}>
+                                        {initials}
+                                      </div>
+                                    );
+                                  })()}
                                   <span>{task.completed_by_name}</span>
                                 </div>
                                 <div className="task-meta-item">
