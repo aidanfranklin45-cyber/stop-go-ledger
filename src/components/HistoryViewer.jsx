@@ -13,7 +13,8 @@ import {
   ArrowLeft,
   Trash2,
   Lock,
-  Flag
+  Flag,
+  FileText
 } from 'lucide-react';
 import { getSubmittedShifts, getActiveShift, getEmployees, validateEmployeePin, deleteShift, sendDiscordShiftDeleted, updateTask } from '../firebase';
 import PinNumpad from './PinNumpad';
@@ -29,6 +30,7 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
   // Manager authentication for entry
   const [isAuthenticated, setIsAuthenticated] = useState(defaultAuthenticated || false);
   const [allEmployees, setAllEmployees] = useState([]);
+  const [fullEmployeesList, setFullEmployeesList] = useState([]);
   const [selectedEntryManagerId, setSelectedEntryManagerId] = useState(null);
   const [entryPinError, setEntryPinError] = useState("");
 
@@ -93,11 +95,17 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
   const loadManagers = useCallback(async () => {
     try {
       const emps = await getEmployees();
+      setFullEmployeesList(emps);
       setAllEmployees(emps.filter(e => e.role === 'manager' && e.is_active));
     } catch (err) {
       console.error(err);
     }
   }, []);
+
+  const getEmployeeName = (id) => {
+    const emp = fullEmployeesList.find(e => e.employee_id === id || e.id === id);
+    return emp ? emp.employee_name : id;
+  };
 
   useEffect(() => {
     loadManagers();
@@ -318,7 +326,8 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
   }
 
   return (
-    <div className="main-layout animate-fade-in" style={{ gridTemplateColumns: '320px 1fr' }}>
+    <>
+      <div className="main-layout animate-fade-in no-print" style={{ gridTemplateColumns: '320px 1fr' }}>
       
       {/* Left Column: Shifts List */}
       <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)', minHeight: '480px' }}>
@@ -561,7 +570,31 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                 )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
+                {(selectedShift.status === 'submitted' || selectedShift.status === 'missed_cleanup') && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary no-print"
+                    style={{ 
+                      fontSize: '0.8rem', 
+                      padding: '8px 12px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      gap: '6px',
+                      width: '100%',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => window.print()}
+                  >
+                    <FileText size={14} />
+                    <span>Export PDF Report</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-danger"
@@ -595,7 +628,7 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {selectedShift.active_team_pids?.map(pid => (
                     <span key={pid} style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                      ID: {pid}
+                      👤 {getEmployeeName(pid)}
                     </span>
                   ))}
                 </div>
@@ -796,6 +829,75 @@ const HistoryViewer = ({ onBack, defaultAuthenticated, currentActiveShiftId, onA
         )}
       </div>
     </div>
+      {/* ── PRINT-ONLY: detailed task breakdown ── */}
+      {selectedShift && (
+        <div className="print-only" style={{ marginTop: '0', textAlign: 'left' }}>
+          <div className="print-doc-header">
+            <div>
+              <div className="print-doc-title">Stop &amp; Go — Shift Ledger</div>
+              <div className="print-doc-subtitle">
+                {selectedShift.date} &nbsp;·&nbsp; {selectedShift.shift_type?.toUpperCase()} SHIFT
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', fontSize: '11px', color: '#64748b' }}>
+              {selectedShift.status === 'submitted' ? (
+                <div>Sealed: {formatDateTime(selectedShift.submitted_at)}</div>
+              ) : selectedShift.status === 'missed_cleanup' ? (
+                <div>Sealed: {formatDateTime(selectedShift.cleaned_up_at)} (Missed Archive)</div>
+              ) : (
+                <div>Status: {selectedShift.status}</div>
+              )}
+              <div style={{ marginTop: '4px' }}>
+                Signed by: {selectedShift.signatures && Array.isArray(selectedShift.signatures) ? (
+                  selectedShift.signatures.map(s => s.name).join(' & ')
+                ) : selectedShift.signatures ? (
+                  [selectedShift.signatures.manager_name, selectedShift.signatures.operator_name].filter(Boolean).join(' & ')
+                ) : (
+                  'None'
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: 'flex', gap: '24px', marginBottom: '20px', fontSize: '12px', color: '#475569' }}>
+            <span><strong style={{ color: '#0f172a' }}>{selectedShift.completed_count}</strong> / {selectedShift.total_count} tasks completed</span>
+            <span>Team: <strong style={{ color: '#0f172a' }}>{selectedShift.active_team_pids?.map(pid => getEmployeeName(pid)).join(', ') || 'None'}</strong></span>
+          </div>
+
+          {/* Full task list grouped by category */}
+          {selectedShift.tasks && Object.values(selectedShift.tasks).length > 0 && (() => {
+            const allTasks = Object.values(selectedShift.tasks);
+            const categories = [...new Set(allTasks.map(t => t.category).filter(Boolean))];
+            return categories.map(cat => {
+              const catTasks = allTasks.filter(t => t.category === cat);
+              return (
+                <div key={cat} style={{ marginBottom: '16px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b', marginBottom: '6px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                    {cat}
+                  </div>
+                  {catTasks.map(task => (
+                    <div key={task.task_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #f1f5f9', fontSize: '12px' }}>
+                      <span style={{ width: '14px', height: '14px', borderRadius: '3px', background: task.is_completed ? '#10b981' : '#e2e8f0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '9px', flexShrink: 0 }}>
+                        {task.is_completed ? '✓' : task.missed ? '✕' : ''}
+                      </span>
+                      <span style={{ flex: 1, color: task.is_completed ? '#0f172a' : '#94a3b8', textDecoration: task.missed ? 'line-through' : 'none' }}>
+                        {task.task_name}
+                      </span>
+                      {task.is_completed && (
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>
+                          {task.completed_by_name} · {task.completed_at ? formatTime(task.completed_at) : ''}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            });
+          })()}
+        </div>
+      )}
+    </>
   );
 };
 
