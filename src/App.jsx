@@ -466,20 +466,20 @@ function App() {
       {/* Header bar */}
       <header className="header glass-panel animate-fade-in">
         <div className="logo-section" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img 
-            src={logo} 
-            alt="Stop & Go Logo" 
-            style={{ width: '40px', height: '40px', objectFit: 'contain' }} 
+          <img
+            src={logo}
+            alt="Stop &amp; Go Logo"
+            style={{ width: '38px', height: '38px', objectFit: 'contain' }}
             onError={(e) => { e.target.style.display = 'none'; }}
           />
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, lineHeight: 1.2 }}>Stop & Go</h1>
-            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Dynamic Chores List</p>
+            <h1 style={{ margin: 0 }}>Stop &amp; Go</h1>
+            <p style={{ margin: 0 }}>Dynamic Chores Ledger</p>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="nav-tabs" style={{ display: 'flex', gap: '8px' }}>
+        <div className="nav-tabs">
           <button 
             type="button"
             className={`btn ${currentTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'}`}
@@ -505,7 +505,7 @@ function App() {
             }}
             style={{ padding: '8px 16px', fontSize: '0.85rem' }}
           >
-            Manager Access
+            Manager
           </button>
         </div>
 
@@ -542,6 +542,16 @@ function App() {
 
         </div>
       </header>
+
+      {/* Shift progress bar — shows completion % on active shifts */}
+      {currentShift && currentShift.status === 'open' && (
+        <div className="shift-progress-strip">
+          <div
+            className="shift-progress-strip-fill"
+            style={{ width: `${getProgressPercent()}%` }}
+          />
+        </div>
+      )}
 
       {/* Main content display based on states */}
       {loading ? (
@@ -1037,6 +1047,70 @@ function App() {
           <button className="btn btn-primary" onClick={handleResetShift}>
             <RotateCcw size={16} /> Initialize Next Shift
           </button>
+
+          <button
+            className="btn btn-secondary no-print"
+            style={{ marginTop: '12px' }}
+            onClick={() => window.print()}
+          >
+            📄 Export PDF Summary
+          </button>
+
+          {/* ── PRINT-ONLY: detailed task breakdown ── */}
+          <div className="print-only" style={{ marginTop: '0', textAlign: 'left' }}>
+            <div className="print-doc-header">
+              <div>
+                <div className="print-doc-title">Stop &amp; Go — Shift Ledger</div>
+                <div className="print-doc-subtitle">
+                  {currentShift.date} &nbsp;·&nbsp; {currentShift.shift_type?.toUpperCase()} SHIFT
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: '11px', color: '#64748b' }}>
+                <div>Sealed: {new Date(currentShift.submitted_at).toLocaleString()}</div>
+                <div style={{ marginTop: '4px' }}>
+                  Signed by: {currentShift.signatures?.map(s => s.employee_name).join(' & ')}
+                </div>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div style={{ display: 'flex', gap: '24px', marginBottom: '20px', fontSize: '12px', color: '#475569' }}>
+              <span><strong style={{ color: '#0f172a' }}>{currentShift.completed_count}</strong> / {currentShift.total_count} tasks completed</span>
+              <span>Team: <strong style={{ color: '#0f172a' }}>{activeTeamObjects.map(e => e.employee_name).join(', ')}</strong></span>
+            </div>
+
+            {/* Full task list grouped by category */}
+            {currentShift.tasks && Object.values(currentShift.tasks).length > 0 && (() => {
+              const allTasks = Object.values(currentShift.tasks);
+              const categories = [...new Set(allTasks.map(t => t.category).filter(Boolean))];
+              return categories.map(cat => {
+                const catTasks = allTasks.filter(t => t.category === cat);
+                return (
+                  <div key={cat} style={{ marginBottom: '16px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b', marginBottom: '6px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                      {cat}
+                    </div>
+                    {catTasks.map(task => (
+                      <div key={task.task_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #f1f5f9', fontSize: '12px' }}>
+                        <span style={{ width: '14px', height: '14px', borderRadius: '3px', background: task.is_completed ? '#10b981' : '#e2e8f0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '9px', flexShrink: 0 }}>
+                          {task.is_completed ? '✓' : task.missed ? '✕' : ''}
+                        </span>
+                        <span style={{ flex: 1, color: task.is_completed ? '#0f172a' : '#94a3b8', textDecoration: task.missed ? 'line-through' : 'none' }}>
+                          {task.task_name}
+                        </span>
+                        {task.is_completed && (
+                          <span style={{ fontSize: '10px', color: '#64748b' }}>
+                            {task.completed_by_name} · {task.completed_at ? new Date(task.completed_at?.seconds ? task.completed_at.seconds * 1000 : task.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
         </div>
       ) : currentShift.status === 'pending_signatures' ? (
         // ==============================================================================

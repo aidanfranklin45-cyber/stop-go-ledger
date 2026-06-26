@@ -95,17 +95,32 @@ const ChoreLedger = ({
 
   const getCategoryIcon = (category) => {
     switch (category?.toLowerCase()) {
-      case 'equipment': return <Wrench size={18} />;
-      case 'heavy clean': return <Sparkles size={18} />;
-      case 'prep': return <ChefHat size={18} />;
-      case 'sanitation': return <Droplets size={18} />;
-      case 'facilities': return <Home size={18} />;
-      case 'food safety': return <ShieldAlert size={18} />;
-      case 'financial': return <DollarSign size={18} />;
-      case 'front of house': return <Store size={18} />;
-      case 'inventory': return <ClipboardList size={18} />;
-      default: return <ClipboardList size={18} />;
+      case 'equipment':      return <Wrench size={15} />;
+      case 'heavy clean':    return <Sparkles size={15} />;
+      case 'prep':           return <ChefHat size={15} />;
+      case 'sanitation':     return <Droplets size={15} />;
+      case 'facilities':     return <Home size={15} />;
+      case 'food safety':    return <ShieldAlert size={15} />;
+      case 'financial':      return <DollarSign size={15} />;
+      case 'front of house': return <Store size={15} />;
+      case 'inventory':      return <ClipboardList size={15} />;
+      default:               return <ClipboardList size={15} />;
     }
+  };
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      'equipment':      '#3b82f6',
+      'heavy clean':    '#8b5cf6',
+      'prep':           '#f59e0b',
+      'sanitation':     '#06b6d4',
+      'facilities':     '#10b981',
+      'food safety':    '#ef4444',
+      'financial':      '#059669',
+      'front of house': '#f97316',
+      'inventory':      '#6366f1',
+    };
+    return colors[category?.toLowerCase()] || '#4f46e5';
   };
 
   const tasks = shift?.tasks ? Object.values(shift.tasks) : [];
@@ -218,20 +233,31 @@ const ChoreLedger = ({
           const completedCount = categoryTasks.filter(t => t.is_completed).length;
           const totalCount = categoryTasks.length;
 
+          const catColor = getCategoryColor(category);
+
           return (
             <div key={category} className="category-group">
               <div className="category-title">
-                {getCategoryIcon(category)}
+                {/* Colored icon chip */}
+                <span
+                  className="category-title-icon"
+                  style={{ '--cat-accent': catColor }}
+                >
+                  {getCategoryIcon(category)}
+                </span>
                 <span>{category}</span>
-                <span 
-                  style={{ 
-                    fontSize: '0.8rem', 
-                    color: 'var(--text-muted)', 
-                    fontWeight: 500,
-                    marginLeft: '4px' 
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    color: catColor,
+                    fontWeight: 700,
+                    background: `color-mix(in srgb, ${catColor} 12%, transparent)`,
+                    padding: '1px 8px',
+                    borderRadius: '999px',
+                    marginLeft: '2px',
                   }}
                 >
-                  ({completedCount}/{totalCount})
+                  {completedCount}/{totalCount}
                 </span>
               </div>
 
@@ -242,11 +268,11 @@ const ChoreLedger = ({
                   const cardClass = `task-card ${isCompleted ? 'completed' : ''} ${isMissed ? 'missed' : ''}`;
 
                   return (
-                    <div 
-                      key={task.task_id} 
+                    <div
+                      key={task.task_id}
                       className={cardClass}
                       onClick={() => handleCardClick(task)}
-                      style={{ position: 'relative' }}
+                      style={{ '--category-accent': catColor }}
                     >
                       {/* Task Content */}
                       <div className="task-checkbox">
