@@ -429,6 +429,7 @@ const ChoreLedger = ({
                     padding: '12px 16px', 
                     display: 'flex', 
                     alignItems: 'center', 
+                    justifyContent: 'flex-start',
                     gap: '12px',
                     cursor: 'pointer',
                     background: st.is_completed ? 'var(--accent-green-glow)' : 'rgba(0,0,0,0.02)',
